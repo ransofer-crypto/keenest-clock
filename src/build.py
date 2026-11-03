@@ -16,6 +16,9 @@ extra_css='''
 .names{display:flex;flex-direction:column;gap:10px;width:100%;max-width:340px}
 .nm{display:flex;align-items:center;gap:12px;height:58px;padding:0 10px;border:0;border-radius:18px;background:var(--chip);color:var(--ink);font:inherit;font-size:17px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgb(0 32 63 / .06)}
 .nm .av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--k-blue);color:#fff;font-weight:700}
+/* manager avatars, same colors as the work board */
+.av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
+.av.z{background:linear-gradient(135deg,#4CC98A,#1F8A55);color:#fff}
 .pop .warn{color:var(--k-pink);font-size:13.5px;min-height:1em;margin:4px 2px 0}
 '''
 pwa='''<!doctype html>

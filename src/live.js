@@ -24,7 +24,7 @@ async function loadAll(){
   res.forEach(function(r){if(r.error)throw r.error});
   D.all=res[0].data.map(function(x){return {id:x.id,name:x.name,cls:x.cls||"a",start:x.start_date||"",birthday:x.birthday||"",vac:x.vac_per_year,role:x.role,email:x.email,code:x.invite_code}});
   D.all.sort(function(a,b){return a.role===b.role?(a.name<b.name?-1:1):(a.role==="employee"?-1:1)});
-  D.emps=D.all.filter(function(e){return e.role==="employee"});
+  D.emps=D.all.slice();
   D.punches=res[1].data.map(function(p){return {id:p.id,emp:p.emp,date:p.day,in:t5(p.in_time),out:t5(p.out_time),inLoc:p.in_loc||"",outLoc:p.out_loc||"",note:p.note||"",pending:p.pending}});
   D.reqs=res[2].data.map(function(r){return {id:r.id,emp:r.emp,type:r.type,from:r.from_date,to:r.to_date,days:r.days,status:r.status,late:r.late,note:r.note||"",date:r.fix_day,inT:t5(r.fix_in),outT:t5(r.fix_out),oldIn:t5(r.old_in),oldOut:t5(r.old_out),created:(r.created_at||"").slice(0,10)}});
   D.settings={};res[3].data.forEach(function(s){D.settings[s.key]=s.value});
@@ -120,6 +120,12 @@ function exportCsv(){var y=repMonth[0],m=repMonth[1],pre=y+"-"+pad(m+1),rows=[["
   try{var f=new File([blob],name,{type:"text/csv"});if(navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f],title:name}).catch(function(){});return}}catch(e){}
   var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1500)}
 
+/* managers clock in too: their tabs are today · team · approvals · report */
+function tabOrder(){return isMgr()?["today","team","approve","report"]:["today","week","vac"]}
+function navHtml(){var L={today:["היום","i-clock"],week:["השבוע","i-list"],vac:["חופשות","i-sun"],team:["צוות","i-team"],approve:["לאישור","i-check"],report:["דוח","i-chart"]};
+  var pend=D.reqs.filter(function(r){return r.status==="pending"}).length;
+  return tabOrder().map(function(k){return '<button type="button" data-tab="'+k+'" aria-selected="'+(tab===k)+'"><svg><use href="#'+L[k][1]+'"/></svg>'+L[k][0]+(k==="approve"&&pend?'<span class="cnt">'+pend+"</span>":"")+"</button>"}).join("")}
+
 /* ---------- account menu (top chip) ---------- */
 function isStandalone(){return matchMedia("(display-mode: standalone)").matches||navigator.standalone===true}
 function accountDialog(){var m=emp(me());
@@ -166,8 +172,8 @@ async function start(){var s=await sb.auth.getSession();if(!s.data.session){logi
   try{await loadAll()}catch(e){if(/JWT|jwt|401/.test(e.message||"")){await sb.auth.signOut();loginView();return}$("#view").innerHTML='<p class="empty">אין חיבור כרגע. נסה לרענן.</p>';return}
   if(!D.meId){$("#view").innerHTML='<p class="empty">המשתמש הזה לא מוגדר בשעון.</p>';return}
   D.dayNote="";$("#tabs").style.display="";$("#demoBtn").style.visibility="visible";$("#demoWho").textContent=emp(me()).name;
-  await loadWeather();tab=isMgr()?"team":"today";started=true;render("a-load");geocodeOffice()}
-document.addEventListener("click",function(e){var t=e.target.closest("[data-tab]");if(t){var order=isMgr()?["team","approve","report"]:["today","week","vac"],a=order.indexOf(tab),b=order.indexOf(t.dataset.tab);if(t.dataset.tab===tab)return;tab=t.dataset.tab;render(b>a?"a-tl":"a-tr");return}
+  await loadWeather();tab="today";started=true;render("a-load");geocodeOffice()}
+document.addEventListener("click",function(e){var t=e.target.closest("[data-tab]");if(t){var order=tabOrder(),a=order.indexOf(tab),b=order.indexOf(t.dataset.tab);if(t.dataset.tab===tab)return;tab=t.dataset.tab;render(b>a?"a-tl":"a-tr");return}
   var ok=e.target.closest("[data-ok]");if(ok){decide(ok.dataset.ok,true);return}var no=e.target.closest("[data-no]");if(no){decide(no.dataset.no,false);return}
   var ex=e.target.closest("[data-exp]");if(ex){var box=$("#x"+ex.dataset.exp);box.hidden=!box.hidden;ex.textContent=box.hidden?"פירוט לפי ימים":"הסתרת הפירוט";return}
   if(e.target.closest("#mPrev")){repMonth[1]--;if(repMonth[1]<0){repMonth[1]=11;repMonth[0]--}render("a-tr");return}
