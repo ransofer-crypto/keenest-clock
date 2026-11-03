@@ -134,9 +134,9 @@ function dayLook(d,e,demoKey){var k=demoKey,extra={};
     var night=k==="hanukkah"?(demoKey?3:hanNight(d)):0;if(night)q="חג אורים שמח! הערב נר "+ORD[night-1]+" של חנוכה.";
     return {fx:s.fx,q:q,n:s.n,quiet:s.quiet,dst:s.dst,night:night}}
   var w=d.getDay();if(w>3)w=0;var pool=POOL[w].slice(),mo2=d.getMonth();
-  if(mo2>=8&&mo2<=10)pool.push(["עץ בשלכת","סתיו בחוץ. העלים מתחלפים."]);
-  if(mo2>=2&&mo2<=4)pool.push(["פרחי בר","אביב בחוץ. הכול פורח."]);
-  var it2=pool[weekNo(d)%pool.length];return {fx:[it2[0]],q:it2[1],n:HEB_DAYS[d.getDay()]}}
+  if(mo2>=8&&mo2<=10)pool.push(["עץ בשלכת","סתיו. זמן לקפוצ'ון."]);
+  if(mo2>=2&&mo2<=4)pool.push(["פרחי בר","אביב. פותחים חלון."]);
+  var it2=pool[(weekNo(d)+d.getDay())%pool.length];return {fx:[it2[0]],q:it2[1],n:HEB_DAYS[d.getDay()]}}
 
 /* ---------- views ---------- */
 var tab="today",slideBusy=false;
