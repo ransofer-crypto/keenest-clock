@@ -128,18 +128,30 @@ function navHtml(){var L={today:["היום","i-clock"],week:["השבוע","i-lis
 
 /* ---------- account menu (top chip) ---------- */
 function isStandalone(){return matchMedia("(display-mode: standalone)").matches||navigator.standalone===true}
-function accountDialog(){var m=emp(me());
+var TL={today:["היום","i-clock"],week:["השבוע","i-list"],vac:["חופשות","i-sun"],team:["צוות","i-team"],approve:["לאישור","i-check"],report:["דוח חודשי","i-chart"]};
+function pendingCount(){return isMgr()?D.reqs.filter(function(r){return r.status==="pending"}).length:0}
+function accountDialog(){var m=emp(me()),pend=pendingCount();
   var codes=isMgr()?D.all.filter(function(e){return e.code}).map(function(e){return '<div class="drow"><span>'+e.name+'</span><span class="nn"></span><span class="tt ltr" style="letter-spacing:.1em">'+e.code+"</span></div>"}).join(""):"";
   var off=D.office||{};
   var b=pop('<h3>'+esc(m?m.name:"")+'</h3><p class="sub">'+(isMgr()?"מנהל":"עובד")+" · קינסט</p>"+
+    '<div class="mlist">'+tabOrder().map(function(k){return '<button type="button" data-go="'+k+'" aria-current="'+(tab===k)+'"><svg><use href="#'+TL[k][1]+'"/></svg>'+TL[k][0]+(k==="approve"&&pend?'<span class="cnt2">'+pend+"</span>":"")+"</button>"}).join("")+"</div>"+
     (isStandalone()?"":'<p class="lbl2">להוספה למסך הבית</p><p class="sub">באייפון: לחיצה על כפתור השיתוף בספארי ואז על "הוספה למסך הבית". מעכשיו השעון ייפתח כמו אפליקציה.</p>')+
     (isMgr()?'<p class="lbl2">מיקום המשרד</p><p class="sub">'+esc(off.address||"")+(off.lat?" · נקבע":" · עוד לא נקבע")+'</p><button class="btn ghost" type="button" id="aHere" style="width:100%">אני במשרד עכשיו, קבע את המיקום מכאן</button>'+
       (codes?'<p class="lbl2" style="margin-top:12px">קודי הצטרפות למי שעוד לא נכנס</p>'+codes:""):"")+
-    '<div class="btns"><button class="bred" id="aOut">התנתקות</button><button class="bs">ביטול</button></div>');
+    '<div class="mlist" style="margin-top:12px"><button type="button" class="red" id="aOut"><svg><use href="#i-out"/></svg>התנתקות</button></div>'+
+    '<div class="btns"><button class="bs">ביטול</button></div>');
   b.querySelector(".bs").onclick=closePop;
+  b.querySelectorAll("[data-go]").forEach(function(x){x.onclick=function(){var k=x.dataset.go;closePop();if(k===tab)return;var o=tabOrder(),a=o.indexOf(tab),c=o.indexOf(k);tab=k;render(c>a?"a-tl":"a-tr")}});
   b.querySelector("#aOut").onclick=async function(){closePop();await sb.auth.signOut();location.reload()};
   var h=b.querySelector("#aHere");if(h)h.onclick=async function(){h.textContent="רגע…";var p=await getPos();if(!p){h.textContent="לא הצלחתי לקבל מיקום. צריך לאשר גישה למיקום";return}
     D.office=Object.assign({},D.office,{lat:p.lat,lng:p.lng});var r=await sb.from("settings").update({value:D.office}).eq("key","office");closePop();toast(r.error?errMsg(r.error):"מיקום המשרד נשמר")}}
+
+/* the phone's top strip follows the page color (plain, morning tint, evening dusk) */
+var BAR={light:{"":"#E6E9EC",in:"#C2E0EB",out:"#A1ADB8"},dark:{"":"#2F2F2F",in:"#274953",out:"#1A1E25"}};
+function isDark(){var t=document.documentElement.getAttribute("data-theme");return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches}
+var veilNow="";
+function setVeil(c){veilNow=c||"";var el=$("#veil");el.className="veil"+(c?" "+c:"");var m=$("#tcolor");if(m)m.setAttribute("content",BAR[isDark()?"dark":"light"][veilNow])}
+var _render=render;render=function(dir){_render(dir);var d=$("#mdot");if(d)d.hidden=!pendingCount()};
 
 /* ---------- login ---------- */
 async function loginView(){FX.stop();setVeil("");$("#tabs").innerHTML="";$("#tabs").style.display="none";$("#demoBtn").style.visibility="hidden";
@@ -184,8 +196,9 @@ document.addEventListener("click",function(e){var t=e.target.closest("[data-tab]
   var dr=e.target.closest("[data-date]");if(dr&&!isMgr()){fixDialog(me(),dr.dataset.date);return}
 });
 $("#demoBtn").onclick=accountDialog;
-$("#themeBtn").onclick=function(){var r=document.documentElement,t=r.getAttribute("data-theme"),dark=t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches;var nt=dark?"light":"dark";r.setAttribute("data-theme",nt);ls("keenest.theme",nt);if(started&&tab==="today")afterToday()};
-(function(){var t=ls("keenest.theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)})();
+$("#themeBtn").onclick=function(){var r=document.documentElement,t=r.getAttribute("data-theme"),dark=t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches;var nt=dark?"light":"dark";r.setAttribute("data-theme",nt);ls("keenest.theme",nt);setVeil(veilNow);if(started&&tab==="today")afterToday()};
+(function(){var t=ls("keenest.theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);setVeil("")})();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",function(){setVeil(veilNow)});
 var rzT;window.addEventListener("resize",function(){clearTimeout(rzT);rzT=setTimeout(function(){if(started&&tab==="today")FX.resize()},250)});
 document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"&&started)refresh()});
 setInterval(function(){if(started&&document.visibilityState==="visible"&&isMgr())refresh()},60000);
