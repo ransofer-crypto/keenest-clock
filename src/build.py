@@ -39,7 +39,8 @@ body{height:100%;overflow-y:auto;overscroll-behavior:none;-webkit-overflow-scrol
 @media (display-mode: standalone){html{height:auto;min-height:min(100lvh,calc(100% + env(safe-area-inset-top,0px)))}body{height:min(100lvh,calc(100vh + env(safe-area-inset-top,0px)))}}
 /* a little more air above the header and the greeting */
 header.top{margin-top:14px}
-.mock .d{margin-top:30px}
+.mock .hi{margin-top:30px;font-size:15px;font-weight:600;color:var(--ink)}
+.mock .d{margin-top:2px}
 /* manager avatars, same colors as the work board */
 .av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
 .av.z{background:linear-gradient(135deg,#4CC98A,#1F8A55);color:#fff}

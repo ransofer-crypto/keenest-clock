@@ -284,7 +284,8 @@ body{height:100%;overflow-y:auto;overscroll-behavior:none;-webkit-overflow-scrol
 @media (display-mode: standalone){html{height:auto;min-height:min(100lvh,calc(100% + env(safe-area-inset-top,0px)))}body{height:min(100lvh,calc(100vh + env(safe-area-inset-top,0px)))}}
 /* a little more air above the header and the greeting */
 header.top{margin-top:14px}
-.mock .d{margin-top:30px}
+.mock .hi{margin-top:30px;font-size:15px;font-weight:600;color:var(--ink)}
+.mock .d{margin-top:2px}
 /* manager avatars, same colors as the work board */
 .av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
 .av.z{background:linear-gradient(135deg,#4CC98A,#1F8A55);color:#fff}
@@ -1593,8 +1594,8 @@ function dayLook(d,e,demoKey){var k=demoKey,extra={};
     var night=k==="hanukkah"?(demoKey?3:hanNight(d)):0;if(night)q="חג אורים שמח! הערב נר "+ORD[night-1]+" של חנוכה.";
     return {fx:s.fx,q:q,n:s.n,quiet:s.quiet,dst:s.dst,night:night}}
   var w=d.getDay();if(w>3)w=0;var pool=POOL[w].slice(),mo2=d.getMonth();
-  if(mo2>=8&&mo2<=10)pool.push(["עץ בשלכת","בוקר סתווי. העלים מתחלפים."]);
-  if(mo2>=2&&mo2<=4)pool.push(["פרחי בר","אביב בחוץ. בוקר טוב."]);
+  if(mo2>=8&&mo2<=10)pool.push(["עץ בשלכת","סתיו בחוץ. העלים מתחלפים."]);
+  if(mo2>=2&&mo2<=4)pool.push(["פרחי בר","אביב בחוץ. הכול פורח."]);
   var it2=pool[weekNo(d)%pool.length];return {fx:[it2[0]],q:it2[1],n:HEB_DAYS[d.getDay()]}}
 
 /* ---------- views ---------- */
@@ -1773,8 +1774,8 @@ async function act(){if(busy)return;var e=emp(me()),g=iso(new Date()),p=punchOf(
   if(!p){if(loc==="out"){var b=pop('<h3>אתה לא במשרד</h3><p>בטוח שאתה רוצה לעשות כניסה מכאן?</p><div class="btns"><button class="bp" id="goIn">כניסה בכל זאת</button><button class="bs">ביטול</button></div>');
       b.querySelector("#goIn").onclick=function(){closePop();clockIn(loc,pos)};b.querySelector(".bs").onclick=function(){closePop();render()};return}clockIn(loc,pos);return}
   if(loc==="out"){outAway(p,pos);return}clockOut(loc,pos,null)}
-async function clockIn(loc,pos){try{var r=await rpc("clock_in",{loc:loc,lat:pos&&pos.lat,lng:pos&&pos.lng});await refresh();toast("בוקר טוב! נכנסת ב־"+t5(r.in_time))}catch(e){await refresh();toast(errMsg(e))}}
-async function clockOut(loc,pos,earlier){try{var r=await rpc("clock_out",{loc:loc,lat:pos&&pos.lat,lng:pos&&pos.lng,earlier:earlier});await refresh();toast(earlier?"שעת היציאה נשלחה לאישור":"יצאת ב־"+t5(r.out_time)+". ערב טוב!")}catch(e){await refresh();toast(errMsg(e))}}
+async function clockIn(loc,pos){try{var r=await rpc("clock_in",{loc:loc,lat:pos&&pos.lat,lng:pos&&pos.lng});await refresh();toast(partOfDay()+"! נכנסת ב־"+t5(r.in_time))}catch(e){await refresh();toast(errMsg(e))}}
+async function clockOut(loc,pos,earlier){try{var r=await rpc("clock_out",{loc:loc,lat:pos&&pos.lat,lng:pos&&pos.lng,earlier:earlier});await refresh();toast(earlier?"שעת היציאה נשלחה לאישור":"יצאת ב־"+t5(r.out_time)+". "+partOfDay()+"!")}catch(e){await refresh();toast(errMsg(e))}}
 function outAway(p,pos){var b=pop('<h3>אתה לא במשרד</h3><p class="sub">מתי יצאת?</p><div class="seg" id="whenSeg"><button type="button" aria-pressed="true" data-w="now">עכשיו</button><button type="button" aria-pressed="false" data-w="before">קודם</button></div><div class="form" id="tBox" hidden><div class="fld"><label for="outT">שעת יציאה</label><input id="outT" type="time" value="'+hm(new Date())+'"></div></div><p id="tNote" hidden>שעה מוקדמת נשלחת לאישור של רן או צפריר.</p><div class="btns"><button class="bp" id="okOut">יציאה</button><button class="bs">ביטול</button></div>');
   var w="now";b.querySelectorAll("#whenSeg button").forEach(function(x){x.onclick=function(){w=x.dataset.w;b.querySelectorAll("#whenSeg button").forEach(function(y){y.setAttribute("aria-pressed",y===x)});b.querySelector("#tBox").hidden=w!=="before";b.querySelector("#tNote").hidden=w!=="before";b.querySelector("#okOut").textContent=w==="before"?"שליחה לאישור":"יציאה"}});
   b.querySelector(".bs").onclick=function(){closePop();render()};
@@ -1793,7 +1794,8 @@ function viewToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g),look=to
   var lab=st==="before"?(vacToday?"היום אתה בחופשה":"עוד לא נכנסת"):st==="in"?"נכנסת ב":"היום";
   var note=(p&&p.note)||D.dayNote||"";
   var flag=p&&p.inLoc==="out"&&!note?'<span class="locflag">נכנסת מחוץ למשרד</span>':"";
-  return '<section class="mock"><span class="d">יום '+HEB_DAYS[new Date().getDay()]+" · "+nice(g)+'</span><p class="q">'+esc(look.q)+'</p><span class="sp big"></span>'+
+  var sad=look.fx&&look.fx[0]==="נר תשעה באב",hi=sad?e.name:partOfDay()+", "+e.name;
+  return '<section class="mock"><span class="hi">'+esc(hi)+'</span><span class="d">יום '+HEB_DAYS[new Date().getDay()]+" · "+nice(g)+'</span><p class="q">'+esc(look.q)+'</p><span class="sp big"></span>'+
     '<span class="l">'+lab+"</span>"+tHtml+'<button type="button" class="where'+(note?" on":"")+'" id="whereBtn"><svg><use href="#i-pin"/></svg><span>'+(note?esc(note):"מחוץ למשרד היום?")+"</span></button>"+flag+
     '<span class="sp"></span><div class="slide'+(st==="in"?" exit":"")+(st==="done"?" done":"")+'" id="slide"><span class="knob" id="knob"><svg><use href="#i-arrow"/></svg></span><span class="lbl" id="slbl">'+(st==="before"?"החלק לכניסה":st==="in"?"החלק ליציאה":"יום טוב, נתראה מחר")+"</span></div></section>"}
 function whereDialog(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);var cur=(p&&p.note)||D.dayNote||"";
@@ -1803,6 +1805,9 @@ function whereDialog(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);var c
   async function set(v){closePop();try{await rpc("set_day_note",{n:v});D.dayNote=v;await refresh()}catch(e){toast(errMsg(e))}}
   b.querySelector("#wOk").onclick=function(){set(b.querySelector("#wn").value.trim())};var dl=b.querySelector("#wDel");if(dl)dl.onclick=function(){set("")}}
 function todayLook(){return dayLook(new Date(),emp(me()),null)}
+
+/* greeting by the hour: morning 5–12, noon 12–17, evening 17–21, night after that */
+function partOfDay(){var h=new Date().getHours();return h>=5&&h<12?"בוקר טוב":h>=12&&h<17?"צהריים טובים":h>=17&&h<21?"ערב טוב":"לילה טוב"}
 
 /* ---------- requests ---------- */
 function fixDialog(id,g){var p=punchOf(id,g);if(g>iso(new Date()))return;var b=pop('<h3>תיקון שעות</h3><p class="sub">'+HEB_DAYS[parse(g).getDay()]+", "+nice(g)+'</p><div class="form"><div class="fld"><label for="fi">כניסה</label><input id="fi" type="time" value="'+(p?p.in:"09:00")+'"></div><div class="fld"><label for="fo2">יציאה</label><input id="fo2" type="time" value="'+(p&&p.out?p.out:"18:00")+'"></div></div><textarea class="note" id="fr" placeholder="מה קרה? למשל שכחתי להחתים"></textarea><div class="btns"><button class="bp" id="fOk">שליחה לאישור</button><button class="bs">ביטול</button></div>');
@@ -1844,7 +1849,7 @@ function navHtml(){var L={today:["היום","i-clock"],week:["השבוע","i-lis
 
 /* ---------- account menu (top chip) ---------- */
 function isStandalone(){return matchMedia("(display-mode: standalone)").matches||navigator.standalone===true}
-var APP_VERSION=8;
+var APP_VERSION=9;
 var TL={today:["היום","i-clock"],week:["השבוע","i-list"],vac:["חופשות","i-sun"],team:["צוות","i-team"],approve:["לאישור","i-check"],report:["דוח חודשי","i-chart"]};
 function pendingCount(){return isMgr()?D.reqs.filter(function(r){return r.status==="pending"}).length:0}
 function accountDialog(){var m=emp(me()),pend=pendingCount();
