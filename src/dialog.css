@@ -1,0 +1,20 @@
+/* ===== Keenest dialog language ===== */
+.kd-hd{display:flex;align-items:center;gap:10px;margin:0}
+.kd-hd .kd-t{flex:1;min-width:0;text-align:start}
+.kd-hd .kd-t>h3{margin:0!important;text-align:start!important;font-size:17px!important;font-weight:800!important;line-height:1.25;display:flex;align-items:center;gap:8px}
+.kd-hd .kd-t>.sub,.kd-hd .kd-t>small{display:block;margin:2px 0 0!important;text-align:start!important;font-size:12.5px;opacity:.7}
+.kd-x{width:34px;height:34px;border-radius:50%;border:0;display:grid;place-items:center;flex:none;cursor:pointer;background:rgb(127 140 160 / .16);color:inherit;padding:0}
+.kd-x svg{width:16px;height:16px}
+.kd .sheet,.pop.kd{background:var(--surface,var(--pop,var(--card)))!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;border:0!important;box-shadow:0 24px 60px rgb(0 10 25 / .28)!important}
+.kd .sheet::before{display:none!important}
+.kd .actions,.pop.kd .btns{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:8px!important}
+.kd .actions .spacer{display:none!important}
+.kd .actions .btn:not(.ghost):not(.danger),.pop.kd .btns .bp{width:100%;height:46px;border-radius:999px;font-weight:700;font-size:15px;justify-content:center;order:-1}
+.kd .actions .btn:not(.ghost):not(.danger){background:var(--sel-bg)!important;color:var(--sel-fg)!important;border:0!important}
+.kd .actions .btn.ghost,.pop.kd .btns .bs{width:100%;height:44px;border-radius:999px;justify-content:center}
+.kd .actions.kd-hasp .btn.danger,.pop.kd .btns.kd-hasp :is(.bred,.bs.red){align-self:center;width:auto!important;height:auto!important;background:none!important;box-shadow:none!important;border:0!important;padding:4px 10px!important;font-size:13.5px;font-weight:600}
+.kd .actions:not(.kd-hasp) .btn.danger,.pop.kd .btns:not(.kd-hasp) :is(.bred,.bs.red){width:100%;height:46px;border-radius:999px;justify-content:center;font-weight:700}
+.kd [hidden]{display:none!important}
+.kd .actions>*,.pop.kd .btns>*{flex:none!important}
+.kd .form{box-shadow:none!important;background:var(--sunk,rgb(127 140 160 / .1))!important}
+.kd .form input[type=datetime-local],.kd .form input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;max-width:100%;width:100%;box-sizing:border-box;padding-left:10px!important}

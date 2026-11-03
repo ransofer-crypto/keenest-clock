@@ -1,0 +1,1155 @@
+/* ================= effects engine ================= */
+(function(){
+var PI=Math.PI,TAU=PI*2,R=Math.random;
+function rnd(a,b){return a+R()*(b-a)}
+function pick(a){return a[(R()*a.length)|0]}
+var PAL={
+  K:["#06B3E5","#FA1664","#FFC94A","#00203F","#FFFFFF","#7C5CFF","#3CDCC8"],
+  BLUE:["#06B3E5","#7FDDF7","#00203F","#FFFFFF","#2E8FD6"],
+  GOLD:["#FFE7A3","#E9B341","#FFD45A","#FFF4D0","#C8902A"],
+  PASTEL:["#FFB3C7","#A8DCF7","#FFF0A0","#C8B6FF","#B9F0CA"],
+  RAIN:["#FF4D4D","#FF9F1C","#FFD60A","#38D96B","#06B3E5","#7C5CFF","#FA1664"],
+  PINK:["#FA1664","#FF7BA8","#FFC2D6","#FFFFFF"],
+  WHITE:["#FFFFFF","#E6F7FD","#CFEFFB"],
+  FIRE:["#FFF1B8","#FFC94A","#FF8A2E","#FF4D1F"],
+  AUTUMN:["#E8772E","#C94A22","#F2B33D","#A8501E","#D9902F"]
+};
+var cv=document.getElementById("cv"),x=cv.getContext("2d"),W=0,H=0,DPR=1;
+function size(){var r=cv.getBoundingClientRect();DPR=Math.min(2,window.devicePixelRatio||1);W=r.width;H=r.height;cv.width=W*DPR;cv.height=H*DPR;x.setTransform(DPR,0,0,DPR,0,0)}
+function isDark(){var t=document.documentElement.getAttribute("data-theme");return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches}
+
+/* ---------- particles ---------- */
+var P=[],S={};
+function part(o){var p={x:0,y:0,vx:0,vy:0,g:0,drag:1,tv:0,life:0,max:4,size:6,col:"#fff",shape:"dot",rot:0,vr:0,flip:0,vf:0,sway:0,sw:R()*TAU,swf:.05,a:1,fade:1,fin:0,trail:0,tr:null,glow:0,kill:1};
+  for(var k in o)p[k]=o[k];if(p.trail)p.tr=[];P.push(p);return p}
+function step(p,dt){
+  p.vy+=p.g*dt;if(p.drag!==1){var d=Math.pow(p.drag,dt);p.vx*=d;p.vy*=d}
+  if(p.tv&&p.vy>p.tv)p.vy=p.tv;
+  if(p.sway){p.sw+=p.swf*dt;p.vx+=Math.sin(p.sw)*p.sway*dt}
+  if(p.tr){p.tr.push(p.x,p.y);if(p.tr.length>p.trail*2)p.tr.splice(0,2)}
+  p.x+=p.vx*dt;p.y+=p.vy*dt;p.rot+=p.vr*dt;p.flip+=p.vf*dt;p.life+=dt/60;
+  if(p.upd)p.upd(p,dt);
+}
+function alphaOf(p){var a=p.a;if(p.fade)a*=Math.max(0,1-Math.pow(p.life/p.max,p.fade===2?3:1.4));if(p.fin)a*=Math.min(1,p.life/p.fin);return a}
+var shapes={
+  dot:function(p,s){x.beginPath();x.arc(0,0,s,0,TAU);x.fill()},
+  rect:function(p,s){x.fillRect(-s*.6,-s,s*1.2,s*2)},
+  sq:function(p,s){x.fillRect(-s,-s,s*2,s*2)},
+  rib:function(p,s){x.lineWidth=s*.55;x.lineCap="round";x.beginPath();x.moveTo(-s*1.8,0);x.bezierCurveTo(-s*.7,-s*1.3,s*.7,s*1.3,s*1.8,0);x.stroke()},
+  stream:function(p,s){x.lineWidth=s*.4;x.lineCap="round";x.beginPath();x.moveTo(0,-s*4);for(var i=1;i<=8;i++)x.lineTo(Math.sin(i*.9+p.sw)*s*.9,-s*4+i*s);x.stroke()},
+  star4:function(p,s){x.beginPath();for(var i=0;i<8;i++){var r=i%2?s*.26:s,a=i*PI/4;x.lineTo(Math.cos(a)*r,Math.sin(a)*r)}x.closePath();x.fill()},
+  star5:function(p,s){x.beginPath();for(var i=0;i<10;i++){var r=i%2?s*.45:s,a=i*PI/5-PI/2;x.lineTo(Math.cos(a)*r,Math.sin(a)*r)}x.closePath();x.fill()},
+  heart:function(p,s){x.beginPath();x.moveTo(0,s*.35);x.bezierCurveTo(-s*1.2,-s*.4,-s*.5,-s*1.2,0,-s*.5);x.bezierCurveTo(s*.5,-s*1.2,s*1.2,-s*.4,0,s*.35);x.fill()},
+  flake:function(p,s){x.lineWidth=Math.max(1,s*.13);x.lineCap="round";x.beginPath();for(var i=0;i<6;i++){var a=i*PI/3,c=Math.cos(a),n=Math.sin(a);x.moveTo(0,0);x.lineTo(c*s,n*s);
+    var bx=c*s*.55,by=n*s*.55;x.moveTo(bx,by);x.lineTo(bx+Math.cos(a+.7)*s*.3,by+Math.sin(a+.7)*s*.3);x.moveTo(bx,by);x.lineTo(bx+Math.cos(a-.7)*s*.3,by+Math.sin(a-.7)*s*.3)}x.stroke()},
+  leaf:function(p,s){x.beginPath();x.moveTo(0,-s);x.quadraticCurveTo(s*.8,-s*.2,0,s);x.quadraticCurveTo(-s*.8,-s*.2,0,-s);x.fill();x.strokeStyle="rgba(0,0,0,.2)";x.lineWidth=1;x.beginPath();x.moveTo(0,-s);x.lineTo(0,s);x.stroke()},
+  petal:function(p,s){x.beginPath();x.moveTo(0,-s);x.bezierCurveTo(s*.9,-s*.6,s*.6,s*.7,0,s);x.bezierCurveTo(-s*.6,s*.7,-s*.9,-s*.6,0,-s);x.fill()},
+  ring:function(p,s){x.lineWidth=p.lw||2;x.beginPath();x.arc(0,0,s,0,TAU);x.stroke()},
+  tri:function(p,s){x.lineWidth=2;x.beginPath();x.moveTo(0,-s);x.lineTo(s*.87,s*.5);x.lineTo(-s*.87,s*.5);x.closePath();p.fill?x.fill():x.stroke()},
+  sqo:function(p,s){x.lineWidth=2;x.strokeRect(-s,-s,s*2,s*2)},
+  hex:function(p,s){x.beginPath();for(var i=0;i<6;i++){var a=i*PI/3;x.lineTo(Math.cos(a)*s,Math.sin(a)*s)}x.closePath();p.stroke?x.stroke():x.fill()},
+  coin:function(p,s){var g=x.createLinearGradient(-s,-s,s,s);g.addColorStop(0,"#FFF1B0");g.addColorStop(.5,"#F2C14B");g.addColorStop(1,"#B98420");x.fillStyle=g;x.beginPath();x.arc(0,0,s,0,TAU);x.fill();
+    x.strokeStyle="rgba(140,90,10,.5)";x.lineWidth=1.5;x.beginPath();x.arc(0,0,s*.72,0,TAU);x.stroke();x.fillStyle="rgba(140,90,10,.55)";x.font="700 "+(s*1.1)+"px "+getComputedStyle(document.body).fontFamily;x.textAlign="center";x.textBaseline="middle";x.fillText("₪",0,1)},
+  bubble:function(p,s){var g=x.createRadialGradient(-s*.3,-s*.3,s*.1,0,0,s);g.addColorStop(0,"rgba(255,255,255,.05)");g.addColorStop(.8,"rgba(160,220,255,.12)");g.addColorStop(1,"rgba(255,255,255,.55)");x.fillStyle=g;x.beginPath();x.arc(0,0,s,0,TAU);x.fill();
+    x.strokeStyle="rgba(255,255,255,.7)";x.lineWidth=1.2;x.stroke();var h=x.createLinearGradient(-s,0,s,0);h.addColorStop(0,"rgba(255,120,200,.35)");h.addColorStop(.5,"rgba(120,220,255,.35)");h.addColorStop(1,"rgba(255,240,120,.35)");x.strokeStyle=h;x.lineWidth=2;x.beginPath();x.arc(0,0,s*.92,PI*.1,PI*.9);x.stroke();
+    x.fillStyle="rgba(255,255,255,.9)";x.beginPath();x.ellipse(-s*.38,-s*.42,s*.16,s*.09,-.7,0,TAU);x.fill()},
+  balloon:function(p,s){x.strokeStyle="rgba(120,130,150,.6)";x.lineWidth=1;x.beginPath();x.moveTo(0,s*1.25);for(var i=1;i<6;i++)x.lineTo(Math.sin(i+p.sw*2)*3,s*1.25+i*s*.45);x.stroke();
+    var g=x.createRadialGradient(-s*.35,-s*.45,s*.1,0,0,s*1.25);g.addColorStop(0,"rgba(255,255,255,.75)");g.addColorStop(.25,p.col);g.addColorStop(1,shade(p.col,-.35));x.fillStyle=g;
+    if(p.heart){x.save();x.scale(1.25,1.25);shapes.heart(p,s*.95);x.restore()}else{x.beginPath();x.ellipse(0,0,s,s*1.2,0,0,TAU);x.fill()}
+    x.fillStyle=shade(p.col,-.3);x.beginPath();x.moveTo(-3,s*1.18);x.lineTo(3,s*1.18);x.lineTo(0,s*1.3);x.fill()},
+  plane:function(p,s){x.fillStyle="#fff";x.strokeStyle="rgba(0,32,63,.35)";x.lineWidth=1;x.beginPath();x.moveTo(s*1.4,0);x.lineTo(-s,-s*.7);x.lineTo(-s*.4,0);x.lineTo(-s,s*.5);x.closePath();x.fill();x.stroke();x.beginPath();x.moveTo(s*1.4,0);x.lineTo(-s*.4,0);x.stroke()},
+  bird:function(p,s){var f=Math.sin(p.life*14+p.sw)*s*.6;x.lineWidth=2;x.lineCap="round";x.lineJoin="round";x.beginPath();x.moveTo(-s,-f);x.quadraticCurveTo(-s*.4,-s*.2,0,0);x.quadraticCurveTo(s*.4,-s*.2,s,-f);x.stroke()},
+  fly:function(p,s){var f=Math.abs(Math.sin(p.life*12+p.sw));x.save();x.scale(1,1);x.fillStyle=p.col;
+    x.save();x.scale(f,1);x.beginPath();x.ellipse(s*.55,-s*.3,s*.6,s*.45,.4,0,TAU);x.ellipse(s*.45,s*.35,s*.4,s*.3,-.4,0,TAU);x.fill();x.restore();
+    x.save();x.scale(-f,1);x.beginPath();x.ellipse(s*.55,-s*.3,s*.6,s*.45,.4,0,TAU);x.ellipse(s*.45,s*.35,s*.4,s*.3,-.4,0,TAU);x.fill();x.restore();
+    x.fillStyle="#00203F";x.fillRect(-1.2,-s*.6,2.4,s*1.2);x.restore()},
+  pop:function(p,s){x.fillStyle="#FFF8E7";for(var i=0;i<5;i++){var a=i*TAU/5+p.sw;x.beginPath();x.arc(Math.cos(a)*s*.45,Math.sin(a)*s*.45,s*.48,0,TAU);x.fill()}x.fillStyle="#F2C14B";x.beginPath();x.arc(0,0,s*.3,0,TAU);x.fill()},
+  seed:function(p,s){x.strokeStyle=p.col;x.lineWidth=1;x.beginPath();x.moveTo(0,s*1.4);x.lineTo(0,0);for(var i=0;i<10;i++){var a=-PI/2+(i-4.5)*.28;x.moveTo(0,0);x.lineTo(Math.cos(a)*s,Math.sin(a)*s)}x.stroke();x.fillStyle=p.col;x.beginPath();x.arc(0,s*1.4,1.6,0,TAU);x.fill()},
+  drop:function(p,s){var g=x.createRadialGradient(-s*.3,-s*.4,0,0,0,s*1.2);g.addColorStop(0,"rgba(255,255,255,.95)");g.addColorStop(.5,"rgba(220,240,255,.35)");g.addColorStop(1,"rgba(0,32,63,.25)");x.fillStyle=g;x.beginPath();x.ellipse(0,0,s,s*1.15,0,0,TAU);x.fill();x.strokeStyle="rgba(255,255,255,.5)";x.lineWidth=1;x.stroke()},
+  splat:function(p,s){x.beginPath();var n=12;for(var i=0;i<=n;i++){var a=i/n*TAU,r=s*(.7+.35*Math.sin(i*2.7+p.sw)+(i%3?0:.25));x.lineTo(Math.cos(a)*r,Math.sin(a)*r)}x.closePath();x.fill();
+    for(var j=0;j<5;j++){var b=p.sw+j*1.3;x.beginPath();x.arc(Math.cos(b)*s*1.5,Math.sin(b)*s*1.5,s*.12+j%2*s*.08,0,TAU);x.fill()}},
+  pom:function(p,s){x.fillStyle="#C21F3A";x.beginPath();x.arc(0,0,s,0,TAU);x.fill();x.fillStyle="#E8455F";x.beginPath();x.arc(-s*.3,-s*.3,s*.45,0,TAU);x.fill();x.fillStyle="#9C1530";x.beginPath();x.moveTo(-s*.35,-s*.85);x.lineTo(-s*.15,-s*1.25);x.lineTo(0,-s*.95);x.lineTo(s*.15,-s*1.25);x.lineTo(s*.35,-s*.85);x.fill()}
+};
+function shade(hex,amt){var n=parseInt(hex.slice(1),16),r=n>>16,g=n>>8&255,b=n&255;function f(c){return Math.max(0,Math.min(255,Math.round(amt<0?c*(1+amt):c+(255-c)*amt)))}return"rgb("+f(r)+","+f(g)+","+f(b)+")"}
+function drawP(p){var a=alphaOf(p);if(a<=0.003)return;
+  if(p.tr&&p.tr.length>3){x.save();x.globalCompositeOperation=S.add;x.strokeStyle=p.col;x.lineCap="round";
+    for(var i=2;i<p.tr.length;i+=2){x.globalAlpha=a*(i/p.tr.length)*.8;x.lineWidth=Math.max(.6,p.size*(i/p.tr.length)*(p.tw||1));x.beginPath();x.moveTo(p.tr[i-2],p.tr[i-1]);x.lineTo(p.tr[i],p.tr[i+1]);x.stroke()}
+    x.globalAlpha=a*.8;x.beginPath();x.moveTo(p.tr[p.tr.length-2],p.tr[p.tr.length-1]);x.lineTo(p.x,p.y);x.stroke();x.restore()}
+  x.save();x.globalAlpha=a;if(p.glow)x.globalCompositeOperation=S.add;x.translate(p.x,p.y);if(p.rot)x.rotate(p.rot);
+  if(p.vf){var c=Math.cos(p.flip);x.scale(1,c);if(c<0)x.globalAlpha=a*.72}
+  if(p.glow){var gs=p.size*p.glow,g=x.createRadialGradient(0,0,0,0,0,gs);g.addColorStop(0,p.col);g.addColorStop(1,"rgba(0,0,0,0)");x.fillStyle=g;x.globalAlpha=a*.35;x.beginPath();x.arc(0,0,gs,0,TAU);x.fill();x.globalAlpha=a}
+  x.fillStyle=p.col;x.strokeStyle=p.col;var tw=p.twk?(.55+.45*Math.abs(Math.sin(p.life*p.twk+p.sw))):1;
+  (shapes[p.shape]||shapes.dot)(p,p.size*tw);x.restore()}
+
+/* ---------- helpers ---------- */
+function O(){return{x:W-31,y:H-46}}           // the slider knob (bottom-left in this layout)
+function confettiPiece(px,py,vx,vy,pal,shp){return part({x:px,y:py,vx:vx,vy:vy,g:.28,drag:.982,tv:3,size:rnd(4,7),col:pick(pal),shape:shp||pick(["rect","rect","rect","rib","dot"]),rot:rnd(0,TAU),vr:rnd(-.2,.2),flip:rnd(0,TAU),vf:rnd(.08,.25),sway:.06,swf:.05,max:9,fade:2})}
+function cannon(px,py,ang,spd,n,spread,pal,shp){for(var i=0;i<n;i++){var a=ang+(R()-.5)*spread,s=spd*rnd(.5,1.15);confettiPiece(px,py,Math.cos(a)*s,Math.sin(a)*s,pal,shp)}}
+function rainOf(n,pal,shp,o){for(var i=0;i<n;i++){var p=confettiPiece(rnd(0,W),rnd(-H*.9,-10),rnd(-.6,.6),rnd(.5,2),pal,shp);if(o)for(var k in o)p[k]=o[k]}}
+function burst(px,py,n,spd,pal,o){for(var i=0;i<n;i++){var a=i/n*TAU+rnd(-.05,.05),s=spd*(o&&o.even?1:rnd(.55,1.1));var p=part({x:px,y:py,vx:Math.cos(a)*s,vy:Math.sin(a)*s,g:.05,drag:.965,size:rnd(1.4,2.4),col:pick(pal),max:rnd(1.6,2.4),fade:1,trail:6,glow:3});if(o)for(var k in o)p[k]=o[k]}}
+function rocket(px,ty,pal,boom,delay){setLater(delay||0,function(){var p=part({x:px,y:H+10,vx:rnd(-.6,.6),vy:-Math.sqrt(2*.12*(H+10-ty)),g:.12,size:2,col:"#FFE7A3",trail:10,glow:3,max:5,fade:0});
+  p.upd=function(q){if(q.vy>=-.4&&!q.done){q.done=1;q.max=0;boom(q.x,q.y,pal)}}})}
+var later=[];function setLater(ms,fn){later.push({t:S.e*1000+ms,fn:fn})}
+function bg(fn){S.bgs.push(fn)}
+function fg(fn){S.fgs.push(fn)}
+function sparkle(n,pal,o){for(var i=0;i<n;i++){var p=part({x:rnd(10,W-10),y:rnd(10,H-60),size:rnd(3,8),col:pick(pal),shape:"star4",twk:rnd(3,7),max:rnd(3,6),fin:rnd(.1,1.5),fade:1,glow:2.2});if(o)for(var k in o)p[k]=o[k]}}
+function txtPoints(str,fs,cx,cy,step){var c=document.createElement("canvas"),w=Math.ceil(W),h=Math.ceil(fs*1.6);c.width=w;c.height=h;var g=c.getContext("2d");g.fillStyle="#000";g.font="800 "+fs+"px "+getComputedStyle(document.body).fontFamily;g.textAlign="center";g.textBaseline="middle";g.direction="rtl";g.fillText(str,w/2,h/2);
+  var d=g.getImageData(0,0,w,h).data,pts=[];for(var yy=0;yy<h;yy+=step)for(var xx=0;xx<w;xx+=step)if(d[(yy*w+xx)*4+3]>128)pts.push([xx-w/2+cx,yy-h/2+cy]);return pts}
+function textParticles(str,pal,fs,o){var pts=txtPoints(str,fs||Math.min(64,W/5),W/2,H*.34,4);pts.forEach(function(t,i){var a=rnd(0,TAU),d=rnd(H*.4,H);
+  var p=part({x:W/2+Math.cos(a)*d,y:H*.34+Math.sin(a)*d,size:rnd(1.3,2.2),col:pick(pal),max:7,fade:0,glow:2.5,tx:t[0],ty:t[1],dl:rnd(0,.5)});
+  p.upd=function(q){var e=q.life-q.dl;if(e<0)return;if(e<3.6){q.x+=(q.tx-q.x)*.07;q.y+=(q.ty-q.y)*.07;q.vx=q.vy=0}else if(!q.gone){q.gone=1;q.vx=rnd(-1.5,1.5);q.vy=rnd(-2.5,-.5);q.g=.05;q.fade=1}}})}
+
+/* ---------- fireworks ---------- */
+var BOOM={
+  peony:function(px,py,pal){var c=pick(pal);burst(px,py,90,4.2,[c,c,"#FFFFFF"])},
+  willow:function(px,py){burst(px,py,80,3.4,["#FFE7A3","#F2C14B"],{g:.035,drag:.975,max:3.6,trail:16,size:1.3,fade:1})},
+  ring:function(px,py,pal){var c=pick(pal);burst(px,py,60,4,[c],{even:1});burst(px,py,30,2,["#FFFFFF"],{even:1})},
+  palm:function(px,py){burst(px,py,10,5,["#FFD45A"],{size:3,trail:22,g:.07,max:2.6,even:1,tw:1.2})},
+  crossette:function(px,py,pal){for(var i=0;i<14;i++){var a=i/14*TAU,p=part({x:px,y:py,vx:Math.cos(a)*3.6,vy:Math.sin(a)*3.6,g:.05,drag:.97,size:2,col:pick(pal),trail:8,glow:3,max:.9,fade:0});
+    p.upd=function(q){if(q.life>=.85&&!q.sp){q.sp=1;for(var j=0;j<4;j++){var b=j*PI/2+PI/4;part({x:q.x,y:q.y,vx:Math.cos(b)*2.2,vy:Math.sin(b)*2.2,g:.05,drag:.96,size:1.6,col:q.col,trail:6,glow:3,max:1.2,fade:1})}}}}},
+  heart:function(px,py){for(var i=0;i<80;i++){var t=i/80*TAU,hx=16*Math.pow(Math.sin(t),3),hy=-(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t));
+    part({x:px,y:py,vx:hx*.24,vy:hy*.24,g:.02,drag:.955,size:2,col:pick(PAL.PINK),trail:5,glow:3,max:2.2,fade:1})}},
+  chrys:function(px,py){burst(px,py,130,4.4,["#FFFFFF","#E6F7FD"],{twk:18,max:2.6,trail:4})},
+  ballw:function(px,py){burst(px,py,90,4.2,["#06B3E5","#FFFFFF"])},
+  multi:function(px,py,pal){var k=pick(["peony","ring","willow","chrys","crossette"]);BOOM[k](px,py,pal)}
+};
+function show(kind,pal,n,gap){for(var i=0;i<(n||1);i++)rocket(rnd(W*.2,W*.8),rnd(H*.14,H*.38),pal||PAL.K,BOOM[kind],i*(gap||450))}
+
+/* ---------- effect list ---------- */
+var E=[];function add(fam,name,init){E.push({fam:fam,name:name,init:init})}
+
+/* קונפטי */
+add("קונפטי","תותחי קונפטי",function(){cannon(-10,H*.8,-PI*.34,19,120,.55,PAL.K);cannon(W+10,H*.8,-PI*.66,19,120,.55,PAL.K);setLater(900,function(){rainOf(60,PAL.K)})});
+add("קונפטי","פיצוץ מהכפתור",function(){var o=O();cannon(o.x,o.y,-PI/2,17,200,2.2,PAL.K)});
+add("קונפטי","מטר קונפטי",function(){rainOf(180,PAL.K)});
+add("קונפטי","קונפטי זהב",function(){cannon(-10,H*.8,-PI*.34,19,120,.55,PAL.GOLD);cannon(W+10,H*.8,-PI*.66,19,120,.55,PAL.GOLD);setLater(900,function(){rainOf(50,PAL.GOLD)})});
+add("קונפטי","קונפטי פסטל",function(){rainOf(170,PAL.PASTEL)});
+add("קונפטי","מזרקת קונפטי",function(){var n=0;var iv=function(){if(n++<26){cannon(W/2,H+10,-PI/2,17,9,.5,PAL.K);setLater(70,iv)}};iv()});
+add("קונפטי","קונפטי כחול לבן",function(){cannon(-10,H*.8,-PI*.34,19,120,.55,PAL.BLUE);cannon(W+10,H*.8,-PI*.66,19,120,.55,PAL.BLUE)});
+add("קונפטי","סרפנטינים",function(){for(var i=0;i<34;i++){var p=confettiPiece(rnd(0,W),rnd(-H,-20),0,rnd(1,2),PAL.K,"stream");p.size=rnd(5,7);p.vf=rnd(.03,.08);p.tv=2.2}cannon(W/2,H+10,-PI/2,16,40,1,PAL.K,"stream")});
+add("קונפטי","קונפטי עגול",function(){cannon(-10,H*.8,-PI*.34,18,110,.6,PAL.PINK,"dot");cannon(W+10,H*.8,-PI*.66,18,110,.6,PAL.PINK,"dot")});
+add("קונפטי","ספירלת קונפטי",function(){for(var i=0;i<220;i++){var a=i*.28,s=4+i*.05;confettiPiece(W/2,H*.42,Math.cos(a)*s,Math.sin(a)*s,PAL.K)}});
+add("קונפטי","קונפטי ענק",function(){for(var i=0;i<40;i++){var p=confettiPiece(rnd(0,W),rnd(-H,-30),rnd(-.5,.5),1,PAL.K,pick(["rect","sq"]));p.size=rnd(10,16);p.tv=2;p.vf=rnd(.04,.1)}});
+add("קונפטי","לבבות קונפטי",function(){cannon(-10,H*.8,-PI*.34,18,90,.6,PAL.PINK,"heart");cannon(W+10,H*.8,-PI*.66,18,90,.6,PAL.PINK,"heart")});
+
+/* זיקוקים */
+add("זיקוקים","זיקוק פיוני",function(){show("peony",PAL.K,3,500)});
+add("זיקוקים","זיקוק ערבה",function(){show("willow",PAL.GOLD,3,600)});
+add("זיקוקים","טבעות",function(){show("ring",PAL.BLUE,3,500)});
+add("זיקוקים","דקל זהב",function(){show("palm",PAL.GOLD,3,550)});
+add("זיקוקים","קרוסט",function(){show("crossette",PAL.K,3,550)});
+add("זיקוקים","זיקוק לב",function(){show("heart",PAL.PINK,2,700)});
+add("זיקוקים","כריזנטמה",function(){show("chrys",PAL.WHITE,3,550)});
+add("זיקוקים","מטח זיקוקים",function(){show("multi",PAL.K,7,320)});
+add("זיקוקים","זיקוקים כחול לבן",function(){show("ballw",PAL.BLUE,5,380)});
+add("זיקוקים","גרנד פינאלה",function(){show("multi",PAL.RAIN,14,160)});
+add("זיקוקים","זיקוק מהכפתור",function(){var o=O();BOOM.chrys(o.x,o.y);BOOM.peony(o.x,o.y,PAL.K)});
+
+/* נצנצים */
+add("נצנצים","נצנוצים",function(){sparkle(40,PAL.WHITE.concat(["#FFE7A3"]))});
+add("נצנצים","אבקת זהב",function(){for(var i=0;i<160;i++)part({x:rnd(0,W),y:rnd(-H,0),vy:rnd(.6,1.4),sway:.02,size:rnd(1,2.2),col:pick(PAL.GOLD),shape:"sq",rot:rnd(0,TAU),vr:rnd(-.1,.1),twk:rnd(6,14),max:12,fade:0,glow:1.5})});
+add("נצנצים","הילה סביב השעה",function(){for(var i=0;i<46;i++){var p=part({size:rnd(2,5),col:pick(["#FFFFFF","#FFE7A3","#7FDDF7"]),shape:"star4",twk:rnd(4,8),max:9,fin:i*.04,fade:0,glow:2,a0:i/46*TAU,rr:rnd(70,120),sp:rnd(.006,.012)});
+  p.upd=function(q){q.a0+=q.sp;q.x=W/2+Math.cos(q.a0)*q.rr*1.3;q.y=H*.56+Math.sin(q.a0)*q.rr*.55}}});
+add("נצנצים","כוכב נופל",function(){for(var i=0;i<3;i++)setLater(i*900,function(){var p=part({x:rnd(W*.5,W*1.1),y:rnd(-20,H*.2),vx:-7,vy:3.6,size:2.6,col:"#FFFFFF",trail:26,glow:4,max:1.6,fade:0});
+  p.upd=function(q){if(R()<.6)part({x:q.x,y:q.y,vx:rnd(-.4,.4),vy:rnd(-.4,.4),size:rnd(1.5,3),col:pick(["#FFE7A3","#FFFFFF","#7FDDF7"]),shape:"star4",max:rnd(.8,1.6),fade:1,glow:2})}})});
+add("נצנצים","מטר מטאורים",function(){for(var i=0;i<22;i++)setLater(i*170,function(){var s=rnd(5,9);part({x:rnd(W*.2,W*1.3),y:rnd(-40,H*.3),vx:-s,vy:s*.55,size:rnd(1.2,2.2),col:pick(["#FFFFFF","#BDEBFA"]),trail:18,glow:3,max:1.4,fade:1})})});
+add("נצנצים","קבוצת כוכבים",function(){var pts=[];for(var i=0;i<11;i++){var q=[rnd(30,W-30),rnd(40,H*.5)];pts.push(q);part({x:q[0],y:q[1],size:rnd(3,6),col:"#FFFFFF",shape:"star4",twk:4,max:12,fin:i*.25,fade:0,glow:3})}
+  bg(function(e){x.save();x.strokeStyle=isDark()?"rgba(255,255,255,.35)":"rgba(0,32,63,.25)";x.lineWidth=1;for(var i=1;i<pts.length;i++){var k=Math.max(0,Math.min(1,(e-i*.25-.2)/.4));if(k<=0)break;x.beginPath();x.moveTo(pts[i-1][0],pts[i-1][1]);x.lineTo(pts[i-1][0]+(pts[i][0]-pts[i-1][0])*k,pts[i-1][1]+(pts[i][1]-pts[i-1][1])*k);x.stroke()}x.restore()})});
+add("נצנצים","מזרקת ניצוצות",function(){var o=O();fg(function(e){if(e<4.5)for(var i=0;i<6;i++){var a=-PI/2+rnd(-.7,.7),s=rnd(3,8);part({x:o.x,y:o.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,g:.14,drag:.98,size:rnd(1,1.8),col:pick(PAL.FIRE),trail:5,glow:3,max:rnd(.6,1.2),fade:1})}})});
+add("נצנצים","אבק כוכבים",function(){for(var i=0;i<120;i++){var p=part({x:rnd(0,W),y:H+rnd(0,40),vy:-rnd(.3,1.1),size:rnd(.8,2),col:pick(["#FFFFFF","#FFE7A3","#7FDDF7"]),twk:rnd(4,10),max:14,fin:rnd(0,3),fade:0,glow:3,sway:.01})}});
+
+/* חלל */
+add("חלל","מהירות האור",function(){for(var i=0;i<240;i++){var p=part({size:rnd(.8,1.8),col:pick(["#FFFFFF","#BDEBFA","#7FDDF7"]),max:30,fade:0,a:0,ang:rnd(0,TAU),d:rnd(2,40),spd:rnd(1.02,1.05),trail:4,glow:2});
+  p.upd=function(q){q.d*=Math.pow(q.spd,1+Math.min(3,S.e));q.x=W/2+Math.cos(q.ang)*q.d;q.y=H*.45+Math.sin(q.ang)*q.d;q.a=Math.min(1,q.d/80);if(q.d>Math.max(W,H)){q.d=rnd(2,20);q.tr.length=0}}}});
+add("חלל","גלקסיה",function(){for(var i=0;i<520;i++){var arm=i%3,r=rnd(6,Math.min(W,H)*.48),p=part({size:rnd(.7,1.9),col:pick(["#FFFFFF","#7FDDF7","#C8B6FF","#FFC2D6"]),max:30,fade:0,fin:rnd(0,1.5),glow:2.2,r:r,a0:arm*TAU/3+r*.03+rnd(-.35,.35)});
+  p.upd=function(q){q.a0+=.6/q.r*.25;q.x=W/2+Math.cos(q.a0)*q.r;q.y=H*.42+Math.sin(q.a0)*q.r*.55}}});
+add("חלל","גחליליות",function(){for(var i=0;i<34;i++)part({x:rnd(0,W),y:rnd(H*.2,H*.9),vx:rnd(-.3,.3),vy:rnd(-.3,.3),size:rnd(1.6,2.8),col:pick(["#E9FF8A","#FFE58A"]),max:30,fade:0,fin:rnd(0,2),twk:rnd(1.5,3),glow:6,sway:.02,upd:function(q){q.vy+=Math.cos(q.life*.7+q.sw)*.004}})});
+add("חלל","שביט",function(){var p=part({x:W+40,y:H*.1,vx:-3.2,vy:1.1,size:4,col:"#FFFFFF",trail:60,tw:1.6,glow:7,max:5,fade:0});p.upd=function(q){for(var i=0;i<3;i++)part({x:q.x,y:q.y,vx:rnd(.2,1),vy:rnd(-.6,.2),size:rnd(.6,1.4),col:pick(["#BDEBFA","#FFFFFF","#7FDDF7"]),max:rnd(.6,1.4),fade:1,glow:2})}});
+add("חלל","מנהרה",function(){fg(function(e){if(R()<.25)part({size:4,col:pick(PAL.BLUE),shape:"ring",lw:1.5,max:3,fade:0,a:0,z:1,upd:function(q){q.z*=1.025;q.size=q.z*6;q.x=W/2+Math.sin(S.e)*10;q.y=H*.45;q.a=Math.min(1,q.z/8)*(1-Math.min(1,q.size/(H*.9)));q.lw=1+q.z*.08}})})});
+add("חלל","כוכב לכת עולה",function(){bg(function(e){var k=Math.min(1,e/3),ease=1-Math.pow(1-k,3),r=W*1.1,cy=H+r*.75-ease*H*.28;
+  var gl=x.createRadialGradient(W/2,cy-r,0,W/2,cy-r,r*.5);gl.addColorStop(0,"rgba(255,230,160,"+.7*ease+")");gl.addColorStop(1,"rgba(255,230,160,0)");x.fillStyle=gl;x.fillRect(0,0,W,H);
+  var g=x.createLinearGradient(0,cy-r,0,cy);g.addColorStop(0,"#06B3E5");g.addColorStop(.4,"#00203F");g.addColorStop(1,"#00101F");x.fillStyle=g;x.beginPath();x.arc(W/2,cy,r,0,TAU);x.fill();
+  x.strokeStyle="rgba(127,221,247,"+.9*ease+")";x.lineWidth=2;x.beginPath();x.arc(W/2,cy,r,PI*1.15,PI*1.85);x.stroke()});sparkle(24,PAL.WHITE,{max:12})});
+add("חלל","מסלולים",function(){for(var i=0;i<6;i++){var rr=40+i*24;for(var j=0;j<(i+2);j++)part({size:rnd(2,4),col:pick(PAL.K),max:30,fade:0,glow:2.5,fin:i*.2,r:rr,a0:j/(i+2)*TAU,sp:(i%2?1:-1)*.02/(1+i*.3),upd:function(q){q.a0+=q.sp;q.x=W/2+Math.cos(q.a0)*q.r;q.y=H*.56+Math.sin(q.a0)*q.r*.42}})}
+  bg(function(){x.save();x.strokeStyle=isDark()?"rgba(255,255,255,.1)":"rgba(0,32,63,.08)";for(var i=0;i<6;i++){x.beginPath();x.ellipse(W/2,H*.56,40+i*24,(40+i*24)*.42,0,0,TAU);x.stroke()}x.restore()})});
+
+/* בלונים ובועות */
+function balloons(pal,n,heart){for(var i=0;i<n;i++)part({x:rnd(20,W-20),y:H+rnd(40,H*.8),vy:-rnd(1.1,2),size:rnd(16,24),col:pick(pal),shape:"balloon",sway:.015,swf:.02,rot:0,max:20,fade:0,heart:heart,upd:function(q){q.rot=Math.sin(q.sw)*.12}})}
+add("בלונים ובועות","בלונים",function(){balloons(["#06B3E5","#FA1664","#FFC94A","#7C5CFF","#3CDCC8"],22)});
+add("בלונים ובועות","בלונים כחולים",function(){balloons(["#06B3E5","#2E8FD6","#7FDDF7","#00203F"],22)});
+add("בלונים ובועות","בלוני לב",function(){balloons(["#FA1664","#FF7BA8","#E0103F"],18,1)});
+add("בלונים ובועות","בלוני זהב",function(){balloons(["#E9B341","#F2C14B","#C8902A","#FFFFFF"],20)});
+add("בלונים ובועות","בועות סבון",function(){for(var i=0;i<26;i++)part({x:rnd(10,W-10),y:H+rnd(20,H),vy:-rnd(.6,1.4),size:rnd(10,32),col:"#fff",shape:"bubble",sway:.02,max:20,fade:0})});
+add("בלונים ובועות","בועות מהכפתור",function(){var o=O();for(var i=0;i<40;i++){var a=-PI/2+rnd(-1,1),s=rnd(1,4);part({x:o.x,y:o.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,drag:.985,g:-.008,size:rnd(6,22),col:"#fff",shape:"bubble",sway:.02,max:rnd(5,9),fade:2})}});
+
+/* מזג אוויר וטבע */
+add("טבע","שלג",function(){for(var i=0;i<110;i++)part({x:rnd(0,W),y:rnd(-H,0),vy:rnd(.5,1.4),size:rnd(3,9),col:"#FFFFFF",shape:pick(["flake","flake","dot"]),rot:rnd(0,TAU),vr:rnd(-.02,.02),sway:.01,swf:.03,max:25,fade:0,glow:1.4})});
+add("טבע","סופת שלג",function(){for(var i=0;i<260;i++)part({x:rnd(0,W*1.5),y:rnd(-H,H),vx:-rnd(1.5,3),vy:rnd(1.5,3),size:rnd(1.5,5),col:"#FFFFFF",shape:pick(["flake","dot","dot"]),rot:rnd(0,TAU),vr:.05,max:12,fade:0})});
+add("טבע","גשם",function(){fg(function(){for(var i=0;i<4;i++){var p=part({x:rnd(0,W+60),y:-20,vx:-1.6,vy:rnd(13,17),size:1,col:isDark()?"rgba(200,230,255,.7)":"rgba(0,60,110,.45)",trail:3,max:1,fade:0});
+  p.upd=function(q){if(q.y>H-70-rnd(0,40)&&!q.s){q.s=1;q.max=0;part({x:q.x,y:q.y,size:2,col:q.col,shape:"ring",lw:1,max:.5,fade:1,upd:function(r){r.size+=.6}})}}}})});
+add("טבע","טיפות על הזכוכית",function(){for(var i=0;i<46;i++){var p=part({x:rnd(0,W),y:rnd(0,H),size:rnd(2,8),col:"#fff",shape:"drop",max:30,fade:0,fin:rnd(0,2),run:R()<.35,trail:0});
+  if(p.run){p.tr=[];p.trail=40;p.upd=function(q){if(q.life>rnd(1,3))q.vy=Math.min(2.4,q.vy+.03);q.vx=Math.sin(q.life*3)*.15}}}});
+add("טבע","עלי שלכת",function(){for(var i=0;i<46;i++)part({x:rnd(0,W),y:rnd(-H,0),vy:rnd(.8,1.6),size:rnd(7,12),col:pick(PAL.AUTUMN),shape:"leaf",rot:rnd(0,TAU),vr:rnd(-.04,.04),flip:rnd(0,TAU),vf:rnd(.03,.07),sway:.05,swf:.03,max:20,fade:0})});
+add("טבע","פריחת דובדבן",function(){for(var i=0;i<70;i++)part({x:rnd(0,W*1.4),y:rnd(-H,0),vx:-rnd(.4,1),vy:rnd(.6,1.3),size:rnd(4,7),col:pick(["#FFC2D6","#FFB3C7","#FFFFFF","#FF9DBA"]),shape:"petal",rot:rnd(0,TAU),vr:rnd(-.05,.05),flip:rnd(0,TAU),vf:rnd(.05,.1),sway:.03,max:20,fade:0})});
+add("טבע","שמש זורחת",function(){bg(function(e){var k=Math.min(1,e/2.6),ease=1-Math.pow(1-k,3),cx=W*.22,cy=H*.95-ease*H*.72,r=34;
+  x.save();x.globalCompositeOperation=S.add;var gl=x.createRadialGradient(cx,cy,0,cx,cy,r*5);gl.addColorStop(0,"rgba(255,210,90,.6)");gl.addColorStop(1,"rgba(255,210,90,0)");x.fillStyle=gl;x.beginPath();x.arc(cx,cy,r*5,0,TAU);x.fill();x.restore();
+  x.save();x.translate(cx,cy);x.rotate(e*.15);x.strokeStyle="#FFC93C";x.lineWidth=3.5;x.lineCap="round";for(var i=0;i<14;i++){var a=i*TAU/14,l=r*(1.35+.15*Math.sin(e*3+i));x.beginPath();x.moveTo(Math.cos(a)*r*1.18,Math.sin(a)*r*1.18);x.lineTo(Math.cos(a)*l,Math.sin(a)*l);x.stroke()}x.restore();
+  var g=x.createRadialGradient(cx-8,cy-8,2,cx,cy,r);g.addColorStop(0,"#FFF6C8");g.addColorStop(.6,"#FFD45A");g.addColorStop(1,"#FFAE1E");x.fillStyle=g;x.beginPath();x.arc(cx,cy,r,0,TAU);x.fill()})});
+add("טבע","קשת בענן",function(){bg(function(e){var k=Math.min(1,e/2.2),ease=1-Math.pow(1-k,3);x.save();x.lineWidth=9;x.globalAlpha=.75;PAL.RAIN.slice(0,6).forEach(function(c,i){x.strokeStyle=c;x.beginPath();x.arc(W/2,H*.62,W*.62-i*9,PI,PI+PI*ease);x.stroke()});x.restore()});
+  setLater(1800,function(){sparkle(16,["#FFFFFF","#FFE7A3"],{max:5})})});
+add("טבע","עננים",function(){var cl=[];for(var i=0;i<6;i++)cl.push({x:rnd(-W*.5,W),y:rnd(20,H*.5),s:rnd(.6,1.3),v:rnd(.15,.45)});
+  bg(function(e){cl.forEach(function(c){c.x+=c.v;if(c.x>W+120)c.x=-160;x.save();x.globalAlpha=Math.min(1,e/1.2)*(isDark()?.25:.9);x.fillStyle="#FFFFFF";x.translate(c.x,c.y);x.scale(c.s,c.s);
+    x.beginPath();x.arc(0,0,26,0,TAU);x.arc(30,-14,32,0,TAU);x.arc(64,0,24,0,TAU);x.arc(32,8,26,0,TAU);x.fill();x.restore()})})});
+add("טבע","ברק",function(){var bolts=[];function bolt(){var pts=[[rnd(W*.2,W*.8),0]];while(pts[pts.length-1][1]<H*.6)pts.push([pts[pts.length-1][0]+rnd(-30,30),pts[pts.length-1][1]+rnd(18,40)]);return pts}
+  [0,180,1400].forEach(function(t){setLater(t,function(){bolts.push({p:bolt(),t:S.e})})});
+  fg(function(e){bolts.forEach(function(b){var a=Math.max(0,1-(e-b.t)/.5);if(a<=0)return;x.save();x.fillStyle="rgba(255,255,255,"+a*.35+")";x.fillRect(0,0,W,H);x.strokeStyle="rgba(255,255,255,"+a+")";x.shadowColor="#7FDDF7";x.shadowBlur=14;x.lineWidth=2.5;x.beginPath();b.p.forEach(function(q,i){i?x.lineTo(q[0],q[1]):x.moveTo(q[0],q[1])});x.stroke();x.restore()})})});
+add("טבע","גלי ים",function(){bg(function(e){var k=Math.min(1,e/1.6);[["#7FDDF7",.55,0],["#06B3E5",.6,1.2],["#00203F",.55,2.4]].forEach(function(w,i){var base=H-((3-i)*28+20)*k;x.save();x.globalAlpha=w[1];x.fillStyle=w[0];x.beginPath();x.moveTo(0,H);
+  for(var xx=0;xx<=W;xx+=6)x.lineTo(xx,base+Math.sin(xx*.025+e*(1.2+i*.3)+w[2])*8+Math.sin(xx*.06-e*2)*3);x.lineTo(W,H);x.fill();x.restore()})})});
+add("טבע","זרעי שן הארי",function(){for(var i=0;i<26;i++)part({x:rnd(-40,W),y:rnd(H*.3,H),vx:rnd(.3,.9),vy:-rnd(.2,.6),size:rnd(6,10),col:isDark()?"#FFFFFF":"#5B6B80",shape:"seed",rot:rnd(-.4,.4),sway:.01,max:20,fade:0,upd:function(q){q.rot=Math.sin(q.life+q.sw)*.4}})});
+add("טבע","פרפרים",function(){for(var i=0;i<10;i++)part({x:rnd(-60,W),y:H+rnd(0,140),vx:rnd(-.6,.9),vy:-rnd(.8,1.6),size:rnd(7,11),col:pick(["#FA1664","#06B3E5","#FFC94A","#7C5CFF"]),shape:"fly",sway:.06,swf:.06,max:20,fade:0,upd:function(q){q.rot=Math.atan2(q.vy,q.vx)+PI/2}})});
+add("טבע","להקת ציפורים",function(){for(var i=0;i<14;i++){var row=Math.abs(i-7);part({x:-40-row*22,y:H*.25+(i-7)*12+row*6,vx:2,vy:-.25,size:rnd(6,9),col:isDark()?"#E6E9EC":"#00203F",shape:"bird",max:12,fade:0,sw:rnd(0,3)})}});
+add("טבע","פריחת אביב",function(){for(var i=0;i<60;i++)part({x:rnd(0,W),y:rnd(-H,0),vy:rnd(.6,1.3),size:rnd(4,7),col:pick(["#FFC2D6","#FFFFFF","#B9F0CA","#8FD99E"]),shape:pick(["petal","leaf"]),rot:rnd(0,TAU),vr:rnd(-.05,.05),flip:rnd(0,TAU),vf:rnd(.05,.1),sway:.03,max:20,fade:0})});
+
+/* גרפיקה */
+add("גרפיקה","אדוות",function(){var o=O();for(var i=0;i<6;i++)setLater(i*260,function(){part({x:o.x,y:o.y,size:6,col:"#06B3E5",shape:"ring",lw:2.5,max:2.6,fade:1,upd:function(q){q.size+=5.5;q.lw=Math.max(.5,2.5-q.life)}})})});
+add("גרפיקה","רשת משושים",function(){var s=22,hx=[];for(var r=0;r*s*1.5<H+s;r++)for(var c=0;c*s*1.73<W+s;c++)hx.push([c*s*1.73+(r%2?s*.87:0),r*s*1.5]);
+  bg(function(e){x.save();hx.forEach(function(h){var d=Math.hypot(h[0]-W/2,h[1]-H*.55),k=Math.max(0,Math.min(1,(e*260-d)/120)),f=Math.max(0,1-Math.abs(e*260-d-60)/90);if(k<=0)return;
+    x.globalAlpha=.18*k+.5*f;x.fillStyle=f>.2?"#06B3E5":(isDark()?"#7FDDF7":"#00203F");x.strokeStyle=x.fillStyle;x.translate(h[0],h[1]);x.beginPath();for(var i=0;i<6;i++){var a=i*PI/3+PI/6;x.lineTo(Math.cos(a)*(s*.86),Math.sin(a)*(s*.86))}x.closePath();f>.2?x.fill():x.stroke();x.translate(-h[0],-h[1])});x.restore()})});
+add("גרפיקה","גל נקודות",function(){bg(function(e){var g=18;x.save();for(var yy=g;yy<H;yy+=g)for(var xx=g/2;xx<W;xx+=g){var d=Math.hypot(xx-W/2,yy-H*.55),s=1+2.6*Math.max(0,Math.sin(d*.05-e*4))*Math.min(1,e/1.2);x.fillStyle=s>2.2?"#06B3E5":(isDark()?"rgba(255,255,255,.4)":"rgba(0,32,63,.3)");x.beginPath();x.arc(xx,yy,s,0,TAU);x.fill()}x.restore()})});
+add("גרפיקה","קווי גובה",function(){bg(function(e){x.save();x.lineWidth=1.4;for(var i=0;i<22;i++){var y0=H*.12+i*(H*.7/22);x.strokeStyle=i%5==2?"#06B3E5":(isDark()?"rgba(255,255,255,.35)":"rgba(0,32,63,.3)");x.beginPath();
+  for(var xx=0;xx<=W;xx+=5){var c=Math.exp(-Math.pow((xx-W/2)/(W*.22),2)),y=y0-c*Math.abs(Math.sin(xx*.08+i*.7+e*2))*26*Math.min(1,e/1.5);xx?x.lineTo(xx,y):x.moveTo(xx,y)}x.stroke()}x.restore()})});
+add("גרפיקה","דופק קינסט",function(){for(var i=0;i<8;i++)setLater(i*220,function(){var c=pick(["#06B3E5","#FA1664","#00203F","#FFC94A"]);part({x:W/2,y:H*.56,size:4,col:c,shape:"ring",lw:8,max:2.4,fade:1,upd:function(q){q.size+=4;q.lw=Math.max(1,8-q.life*3)}})})});
+add("גרפיקה","קליידוסקופ",function(){bg(function(e){x.save();x.translate(W/2,H*.45);x.rotate(e*.3);var k=Math.min(1,e/1.5);for(var i=0;i<12;i++){x.rotate(TAU/12);x.globalAlpha=.55*k;x.fillStyle=["#06B3E5","#FA1664","#FFC94A"][i%3];
+  x.beginPath();x.moveTo(0,0);x.lineTo(40*k,90*k);x.lineTo(-10*k,120*k);x.closePath();x.fill();x.fillStyle="#7FDDF7";x.beginPath();x.arc(0,150*k,8*k,0,TAU);x.fill()}x.restore()})});
+add("גרפיקה","פסים אלכסוניים",function(){bg(function(e){x.save();var cols=["#06B3E5","#FA1664","#FFC94A","#00203F","#7FDDF7"];for(var i=0;i<5;i++){var t=Math.min(1,Math.max(0,(e-i*.12)/.9)),t2=Math.min(1,Math.max(0,(e-1.4-i*.12)/.9));var ea=1-Math.pow(1-t,3),eb=1-Math.pow(1-t2,3);
+  x.fillStyle=cols[i];x.globalAlpha=.9;var w=W*2,off=-w+ea*w*1.2+eb*w*1.2;x.save();x.translate(off,i*44+H*.15);x.rotate(-.35);x.fillRect(0,0,w,34);x.restore()}x.restore()})});
+add("גרפיקה","צורות צפות",function(){for(var i=0;i<26;i++)part({x:rnd(0,W),y:rnd(0,H),vx:rnd(-.3,.3),vy:rnd(-.5,-.1),size:rnd(6,14),col:pick(["#06B3E5","#FA1664","#FFC94A","#7C5CFF"]),shape:pick(["tri","sqo","ring","dot"]),lw:2,rot:rnd(0,TAU),vr:rnd(-.02,.02),max:20,fade:0,fin:rnd(0,1.5)})});
+add("גרפיקה","אריחים מתהפכים",function(){var n=8,s=W/n,rows=Math.ceil(H/s);bg(function(e){x.save();for(var r=0;r<rows;r++)for(var c=0;c<n;c++){var t=Math.min(1,Math.max(0,(e-(r+c)*.05)/.5)),f=Math.cos(t*PI);if(t<=0||t>=1&&e>3)continue;
+  var alpha=t>=1?Math.max(0,1-(e-2)/1):1;x.globalAlpha=.6*alpha;x.fillStyle=t>.5?"#06B3E5":"#00203F";x.save();x.translate(c*s+s/2,r*s+s/2);x.scale(1,Math.abs(f)||.02);x.fillRect(-s/2+1,-s/2+1,s-2,s-2);x.restore()}x.restore()})});
+add("גרפיקה","קווי מהירות",function(){fg(function(e){if(e>3)return;for(var i=0;i<3;i++){var a=rnd(0,TAU),r0=Math.max(W,H)*.75;part({x:W/2+Math.cos(a)*r0,y:H*.5+Math.sin(a)*r0,vx:-Math.cos(a)*14,vy:-Math.sin(a)*14,size:1.6,col:isDark()?"#FFFFFF":"#00203F",trail:8,max:.5,fade:1})}})});
+add("גרפיקה","ספירוגרף",function(){var pts=[];bg(function(e){var R1=W*.3,r=W*.11,d=W*.16;var tmax=e*6;while(pts.length<tmax*30&&pts.length<1600){var t=pts.length/30;pts.push([W/2+(R1-r)*Math.cos(t)+d*Math.cos((R1-r)/r*t),H*.45+(R1-r)*Math.sin(t)-d*Math.sin((R1-r)/r*t)])}
+  x.save();x.lineWidth=1.3;var g=x.createLinearGradient(0,0,W,H);g.addColorStop(0,"#06B3E5");g.addColorStop(.5,"#7C5CFF");g.addColorStop(1,"#FA1664");x.strokeStyle=g;x.beginPath();pts.forEach(function(p,i){i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1])});x.stroke();x.restore()})});
+add("גרפיקה","סליל",function(){bg(function(e){x.save();var k=Math.min(1,e/1.2);for(var i=0;i<30;i++){var y=H*.1+i*(H*.75/30),a=i*.45+e*2,x1=W/2+Math.cos(a)*60*k,x2=W/2-Math.cos(a)*60*k,z=Math.sin(a);
+  x.strokeStyle=isDark()?"rgba(255,255,255,.25)":"rgba(0,32,63,.2)";x.beginPath();x.moveTo(x1,y);x.lineTo(x2,y);x.stroke();x.fillStyle="#06B3E5";x.globalAlpha=.6+.4*z;x.beginPath();x.arc(x1,y,3+z,0,TAU);x.fill();x.fillStyle="#FA1664";x.globalAlpha=.6-.4*z;x.beginPath();x.arc(x2,y,3-z,0,TAU);x.fill();x.globalAlpha=1}x.restore()})});
+add("גרפיקה","גשם אותיות",function(){var cols=[];for(var c=0;c<W/16;c++)cols.push({y:rnd(-H,0),v:rnd(2,4.5)});var L="קינסטצילוםבימויעריכה0123456789";
+  bg(function(e){x.save();x.font="600 14px "+getComputedStyle(document.body).fontFamily;x.textAlign="center";cols.forEach(function(c,i){c.y+=c.v;if(c.y>H+200)c.y=rnd(-200,0);for(var j=0;j<10;j++){x.globalAlpha=(1-j/10)*.8*Math.min(1,e);x.fillStyle=j?"#06B3E5":(isDark()?"#FFFFFF":"#00203F");x.fillText(L[(i*7+j+((e*8)|0))%L.length],i*16+8,c.y-j*16)}});x.restore()})});
+add("גרפיקה","שאיבה ופיצוץ",function(){for(var i=0;i<160;i++){var a=rnd(0,TAU),d=rnd(H*.5,H);part({x:W/2+Math.cos(a)*d,y:H*.56+Math.sin(a)*d,size:rnd(1.2,2.4),col:pick(PAL.K),glow:2.5,max:5,fade:0,a0:a,d:d,upd:function(q){if(q.life<1.3){q.d*=.93;q.x=W/2+Math.cos(q.a0)*q.d;q.y=H*.56+Math.sin(q.a0)*q.d}else if(!q.b){q.b=1;var s=rnd(3,9);q.vx=Math.cos(q.a0)*s;q.vy=Math.sin(q.a0)*s;q.drag=.96;q.fade=1;q.trail=0}}})}});
+add("גרפיקה","בוקר טוב בחלקיקים",function(){textParticles("בוקר טוב",PAL.K)});
+add("גרפיקה","קינסט בחלקיקים",function(){textParticles("KEENEST",["#06B3E5","#00203F","#FA1664"],Math.min(56,W/6.5))});
+add("גרפיקה","שכבות גלים צבעוניות",function(){bg(function(e){var cols=["#00203F","#FA1664","#FFC94A","#06B3E5"];cols.forEach(function(c,i){var t=Math.min(1,Math.max(0,(e-i*.15)/1.4)),ea=1-Math.pow(1-t,3),base=H*(1.05-ea*(.55-i*.1));
+  x.fillStyle=c;x.globalAlpha=.85;x.beginPath();x.moveTo(0,H);for(var xx=0;xx<=W;xx+=6)x.lineTo(xx,base+Math.sin(xx*.02+e*1.5+i)*14);x.lineTo(W,H);x.fill()});x.globalAlpha=1;
+  if(e>2.2){var f=Math.min(1,(e-2.2)/1.2);x.fillStyle=getComputedStyle(cv).getPropertyValue("--x")||"";}})});
+add("גרפיקה","פיקסלים",function(){var s=18,cells=[];for(var yy=0;yy<H;yy+=s)for(var xx=0;xx<W;xx+=s)cells.push([xx,yy,R()]);bg(function(e){x.save();cells.forEach(function(c){var t=e-c[2]*1.2;if(t<0)return;var a=t<.6?t/.6:Math.max(0,1-(t-.6)/1.5);if(a<=0)return;x.globalAlpha=a*.7;x.fillStyle=c[2]<.2?"#FA1664":(c[2]<.6?"#06B3E5":"#7FDDF7");x.fillRect(c[0]+1,c[1]+1,s-2,s-2)});x.restore()})});
+add("גרפיקה","כתמי צבע",function(){var o=O();for(var i=0;i<9;i++)setLater(i*140,function(){part({x:rnd(30,W-30),y:rnd(40,H-120),size:rnd(16,34),col:pick(["#06B3E5","#FA1664","#FFC94A","#7C5CFF"]),shape:"splat",rot:rnd(0,TAU),max:12,fade:0,a:.85,upd:function(q){if(q.life<.15)q.sc=1}})})});
+
+/* קולנוע */
+add("קולנוע","ספירה לאחור של פילם",function(){bg(function(e){if(e>3.4)return;var n=3-Math.floor(e/1.1),t=(e%1.1)/1.1;x.save();x.globalAlpha=Math.min(1,(3.4-e)*3);x.fillStyle=isDark()?"rgba(0,0,0,.45)":"rgba(0,32,63,.12)";x.fillRect(0,0,W,H);
+  var cx=W/2,cy=H*.42,r=Math.min(W,H)*.3;x.strokeStyle=isDark()?"#FFFFFF":"#00203F";x.lineWidth=2;x.beginPath();x.moveTo(0,cy);x.lineTo(W,cy);x.moveTo(cx,0);x.lineTo(cx,H*.8);x.stroke();
+  x.beginPath();x.arc(cx,cy,r,0,TAU);x.stroke();x.beginPath();x.arc(cx,cy,r*.82,0,TAU);x.stroke();x.fillStyle="rgba(6,179,229,.45)";x.beginPath();x.moveTo(cx,cy);x.arc(cx,cy,r*.82,-PI/2,-PI/2+t*TAU);x.fill();
+  x.fillStyle=isDark()?"#FFFFFF":"#00203F";x.font="800 "+r*1.1+"px "+getComputedStyle(document.body).fontFamily;x.textAlign="center";x.textBaseline="middle";x.fillText(n,cx,cy+4);x.restore()});setLater(3300,function(){sparkle(20,PAL.WHITE,{max:3})})});
+add("קולנוע","צמצם נפתח",function(){bg(function(e){var k=Math.min(1,e/1.8),ea=1-Math.pow(1-k,3);if(ea>=.999)return;var n=7,cx=W/2,cy=H/2,Rb=Math.hypot(W,H),open=ea*Rb*.6;x.save();
+  for(var i=0;i<n;i++){var a=i*TAU/n+ea*.8;x.save();x.translate(cx,cy);x.rotate(a);x.translate(open,0);x.fillStyle=i%2?"#00203F":"#0B2C4F";x.strokeStyle="rgba(127,221,247,.5)";x.lineWidth=1.5;x.beginPath();x.moveTo(0,0);x.lineTo(Rb,-Rb*.2);x.lineTo(Rb,Rb);x.lineTo(-Rb*.2,Rb);x.closePath();x.fill();x.stroke();x.restore()}x.restore()})});
+add("קולנוע","עינית מצלמה",function(){fg(function(e){var a=Math.min(1,e/.6)*Math.max(0,Math.min(1,(5-e)/.8));if(a<=0)return;x.save();x.globalAlpha=a;var c=isDark()?"#FFFFFF":"#00203F",m=18,l=26;x.strokeStyle=c;x.lineWidth=2.5;
+  [[m,m,1,1],[W-m,m,-1,1],[m,H-m,1,-1],[W-m,H-m,-1,-1]].forEach(function(q){x.beginPath();x.moveTo(q[0],q[1]+l*q[3]);x.lineTo(q[0],q[1]);x.lineTo(q[0]+l*q[2],q[1]);x.stroke()});
+  x.lineWidth=1;x.globalAlpha=a*.4;x.beginPath();x.moveTo(W/3,m);x.lineTo(W/3,H-m);x.moveTo(W*2/3,m);x.lineTo(W*2/3,H-m);x.moveTo(m,H/3);x.lineTo(W-m,H/3);x.moveTo(m,H*2/3);x.lineTo(W-m,H*2/3);x.stroke();x.globalAlpha=a;
+  if(Math.floor(e*2)%2===0){x.fillStyle="#FA1664";x.beginPath();x.arc(W-m-56,m+18,5,0,TAU);x.fill()}x.fillStyle=c;x.font="700 12px ui-monospace,Menlo,monospace";x.textAlign="left";x.fillText("REC",W-m-46,m+22);
+  var f=Math.floor(e*24),tc="00:00:"+String(Math.floor(e)).padStart(2,"0")+":"+String(f%24).padStart(2,"0");x.fillText(tc,m+8,m+22);x.restore()})});
+add("קולנוע","פס פילם",function(){bg(function(e){var k=Math.min(1,e/.8);x.save();x.translate(W/2,H*.3);x.rotate(-.25);var w=W*2.4,off=((e*120)%92);x.globalAlpha=.9*k;x.fillStyle="#111";x.fillRect(-w/2,-38,w,76);
+  x.fillStyle="#E6E9EC";for(var i=-w/2-off;i<w/2;i+=18){x.fillRect(i,-34,9,7);x.fillRect(i,27,9,7)}for(var j=-w/2-off*2%92;j<w/2;j+=92){var g=x.createLinearGradient(j,0,j+84,0);g.addColorStop(0,"#06B3E5");g.addColorStop(1,"#7FDDF7");x.fillStyle=g;x.fillRect(j+4,-22,80,44)}x.restore()})});
+add("קולנוע","לנס פלייר",function(){fg(function(e){var t=Math.min(1,e/2.4),cx=-60+t*(W+120),cy=H*.3,a=Math.sin(t*PI);if(a<=0)return;x.save();x.globalCompositeOperation=S.add;
+  var g=x.createLinearGradient(0,cy,W,cy);g.addColorStop(0,"rgba(6,179,229,0)");g.addColorStop(Math.max(0.01,Math.min(.99,cx/W)),"rgba(150,230,255,"+.9*a+")");g.addColorStop(1,"rgba(6,179,229,0)");x.fillStyle=g;x.fillRect(0,cy-2,W,4);
+  var gl=x.createRadialGradient(cx,cy,0,cx,cy,60);gl.addColorStop(0,"rgba(255,255,255,"+a+")");gl.addColorStop(1,"rgba(6,179,229,0)");x.fillStyle=gl;x.beginPath();x.arc(cx,cy,60,0,TAU);x.fill();
+  [.4,.7,1.3].forEach(function(f,i){var gx=W/2+(W/2-cx)*f,gy=H/2+(H/2-cy)*f;x.strokeStyle="rgba(127,221,247,"+.35*a+")";x.fillStyle="rgba(124,92,255,"+.08*a+")";x.beginPath();x.arc(gx,gy,10+i*12,0,TAU);x.fill();x.stroke()});x.restore()})});
+add("קולנוע","בוקה משושה",function(){for(var i=0;i<26;i++)part({x:rnd(0,W),y:rnd(0,H),vx:rnd(-.15,.15),vy:-rnd(.1,.4),size:rnd(10,30),col:pick(["rgba(6,179,229,.35)","rgba(255,255,255,.4)","rgba(250,22,100,.22)","rgba(255,201,74,.3)"]),shape:"hex",stroke:0,rot:.3,max:20,fade:0,fin:rnd(0,2)})});
+add("קולנוע","גליץ' VHS",function(){fg(function(e){if(e>1.6)return;x.save();for(var i=0;i<6;i++){if(R()<.5)continue;var y=rnd(0,H),h=rnd(4,26);x.globalAlpha=.6;x.fillStyle=pick(["#FA1664","#06B3E5","#FFFFFF"]);x.fillRect(rnd(-20,20),y,W,h*.3)}
+  x.globalAlpha=.08;x.fillStyle=isDark()?"#FFF":"#000";for(var yy=0;yy<H;yy+=3)x.fillRect(0,yy,W,1);x.restore()})});
+add("קולנוע","זרקורי בכורה",function(){bg(function(e){x.save();x.globalCompositeOperation=S.add;[[W*.15,1],[W*.85,-1]].forEach(function(b){var a=-PI/2+Math.sin(e*1.1)*.5*b[1];var g=x.createLinearGradient(b[0],H,b[0]+Math.cos(a)*H,H+Math.sin(a)*H);g.addColorStop(0,"rgba(200,240,255,.55)");g.addColorStop(1,"rgba(200,240,255,0)");
+  x.fillStyle=g;x.beginPath();x.moveTo(b[0],H+10);x.lineTo(b[0]+Math.cos(a-.09)*H*1.4,H+Math.sin(a-.09)*H*1.4);x.lineTo(b[0]+Math.cos(a+.09)*H*1.4,H+Math.sin(a+.09)*H*1.4);x.closePath();x.globalAlpha=Math.min(1,e/1);x.fill()});x.restore()})});
+add("קולנוע","פלאשים של צלמים",function(){fg(function(e){if(e<4&&R()<.12){var px=rnd(20,W-20),py=rnd(H*.5,H-40);part({x:px,y:py,size:30,col:"#FFFFFF",max:.35,fade:1,glow:4,shape:"star4"})}})});
+add("קולנוע","פופקורן",function(){fg(function(e){if(e<3.5&&R()<.5){var p=part({x:rnd(30,W-30),y:H+10,vx:rnd(-1.5,1.5),vy:-rnd(7,11),g:.25,size:rnd(6,9),shape:"pop",rot:rnd(0,TAU),vr:rnd(-.1,.1),max:5,fade:0,col:"#fff"})}})});
+add("קולנוע","כוכבי הוליווד",function(){for(var i=0;i<26;i++)part({x:rnd(0,W),y:rnd(-H,0),vy:rnd(1,2),size:rnd(7,14),col:pick(["#FFD45A","#F2C14B","#FFE7A3"]),shape:"star5",rot:rnd(0,TAU),vr:rnd(-.04,.04),max:20,fade:0,glow:1.6})});
+add("קולנוע","תאורת סט",function(){bg(function(e){x.save();x.globalCompositeOperation=S.add;var k=Math.min(1,e/.4),fl=e<.6?(R()<.5?.3:1):1;[[0,0,"rgba(255,220,160,"],[W,0,"rgba(150,220,255,"]].forEach(function(l,i){var g=x.createRadialGradient(l[0],l[1],0,l[0],l[1],H*.9);g.addColorStop(0,l[2]+.6*k*fl+")");g.addColorStop(1,l[2]+"0)");x.fillStyle=g;x.fillRect(0,0,W,H)});x.restore()})});
+
+/* חגים וימים מיוחדים */
+add("ימים מיוחדים","עוגת יום הולדת",function(){fg(function(e,t){var k=Math.min(1,e/.8),ea=1-Math.pow(1-k,3),cx=W/2,by=H*.44+(1-ea)*30,w=Math.min(170,W*.5);x.save();x.globalAlpha=ea;
+  x.fillStyle="#FFE3EC";x.beginPath();x.ellipse(cx,by,w/2,12,0,0,TAU);x.fill();x.fillStyle="#FFC2D6";x.fillRect(cx-w/2,by-58,w,58);x.fillStyle="#FA1664";x.fillRect(cx-w/2,by-36,w,8);
+  x.fillStyle="#FFF";x.beginPath();x.ellipse(cx,by-58,w/2,12,0,0,TAU);x.fill();for(var d=0;d<8;d++){var dx=cx-w/2+8+d*(w-16)/7;x.beginPath();x.ellipse(dx,by-52,6,9,0,0,TAU);x.fill()}
+  for(var i=0;i<5;i++){var c=cx-w*.32+i*w*.16,top=by-92;x.fillStyle=["#06B3E5","#FFC94A","#7C5CFF","#3CDCC8","#06B3E5"][i];x.fillRect(c-3,top,6,30);x.fillStyle="#FFF";for(var s=0;s<3;s++)x.fillRect(c-3,top+4+s*9,6,3);
+    var lit=e-1-i*.2;if(lit>0){var gr=Math.min(1,lit/.3),fh=(11+Math.sin(t*.02+i*2)*1.4)*gr,fy=top-2;x.save();x.globalCompositeOperation=S.add;var gl=x.createRadialGradient(c,fy-fh/2,0,c,fy-fh/2,22);gl.addColorStop(0,"rgba(255,200,90,.5)");gl.addColorStop(1,"rgba(255,200,90,0)");x.fillStyle=gl;x.beginPath();x.arc(c,fy-fh/2,22,0,TAU);x.fill();x.restore();
+      var g=x.createRadialGradient(c,fy-fh*.3,0,c,fy-fh*.4,fh*.75);g.addColorStop(0,"#FFF");g.addColorStop(.4,"#FFE58A");g.addColorStop(1,"#FF9A2E");x.fillStyle=g;x.beginPath();x.moveTo(c,fy-fh);x.quadraticCurveTo(c+4.5,fy-fh*.35,c,fy);x.quadraticCurveTo(c-4.5,fy-fh*.35,c,fy-fh);x.fill()}}x.restore()});
+  setLater(2200,function(){cannon(-10,H*.8,-PI*.34,18,70,.55,PAL.K);cannon(W+10,H*.8,-PI*.66,18,70,.55,PAL.K)})});
+add("ימים מיוחדים","יום העצמאות",function(){show("ballw",PAL.BLUE,6,350);var fl=[];for(var i=0;i<14;i++)fl.push(i);bg(function(e){x.save();var k=Math.min(1,e/.8);x.strokeStyle="rgba(0,32,63,.5)";x.lineWidth=1;x.beginPath();x.moveTo(0,22);x.quadraticCurveTo(W/2,60*k+22,W,22);x.stroke();
+  fl.forEach(function(i){var t=(i+.5)/14,px=t*W,py=22+(1-Math.pow(2*t-1,2))*60*k,sw=Math.sin(e*2+i)*.08;x.save();x.translate(px,py);x.rotate(sw);x.fillStyle="#FFF";x.beginPath();x.moveTo(-9,0);x.lineTo(9,0);x.lineTo(0,20);x.closePath();x.fill();x.strokeStyle="#06B3E5";x.lineWidth=2;x.beginPath();x.moveTo(-6,4);x.lineTo(6,4);x.stroke();x.restore()});x.restore()})});
+add("ימים מיוחדים","שרשרת דגלונים",function(){bg(function(e){x.save();var k=Math.min(1,e/.9),ea=1-Math.pow(1-k,3);[[16,50,"K"],[60,40,"P"]].forEach(function(row,ri){var n=10,sag=row[1]*ea;x.strokeStyle=isDark()?"rgba(255,255,255,.4)":"rgba(0,32,63,.4)";x.lineWidth=1;x.beginPath();x.moveTo(-10,row[0]);x.quadraticCurveTo(W/2,row[0]+sag*2,W+10,row[0]);x.stroke();
+  for(var i=0;i<n;i++){var t=(i+.5)/n,px=-10+t*(W+20),py=row[0]+(1-Math.pow(2*t-1,2))*sag;x.save();x.translate(px,py);x.rotate(Math.sin(e*2.2+i+ri)*.12);x.fillStyle=(ri?PAL.PASTEL:["#06B3E5","#FA1664","#FFC94A","#7C5CFF","#3CDCC8"])[i%5];x.beginPath();x.moveTo(-11,0);x.lineTo(11,0);x.lineTo(0,24);x.closePath();x.fill();x.restore()}});x.restore()})});
+add("ימים מיוחדים","יום חמישי",function(){bg(function(e){var k=Math.min(1,e/1.5);x.save();[["#FA1664",.3,.2,1],["#06B3E5",.7,.5,1.3],["#FFC94A",.4,.85,.9]].forEach(function(b,i){var cx=W*b[1]+Math.sin(e*.6*b[3]+i)*W*.2,cy=H*b[2]+Math.cos(e*.5*b[3]+i)*H*.1,r=W*.75;var g=x.createRadialGradient(cx,cy,0,cx,cy,r);g.addColorStop(0,b[0]);g.addColorStop(1,"rgba(0,0,0,0)");x.globalAlpha=.45*k;x.fillStyle=g;x.fillRect(0,0,W,H)});x.restore()});});
+add("ימים מיוחדים","ברוך הבא",function(){textParticles("ברוך הבא",PAL.K);setLater(3600,function(){cannon(-10,H*.8,-PI*.34,18,80,.55,PAL.K);cannon(W+10,H*.8,-PI*.66,18,80,.55,PAL.K)})});
+add("ימים מיוחדים","שנה טובה",function(){bg(function(e){x.save();var g=x.createLinearGradient(0,0,0,60);g.addColorStop(0,"#F2B33D");g.addColorStop(1,"#E39A1E");x.fillStyle=g;x.beginPath();x.moveTo(0,0);x.lineTo(W,0);
+  for(var xx=W;xx>=0;xx-=4){var d=xx/W*12,len=10+Math.max(0,Math.sin(d*1.7)*Math.sin(d*.9+1))*Math.min(1,e/3)*110+Math.sin(xx*.3)*2;x.lineTo(xx,len)}x.closePath();x.globalAlpha=.92;x.fill();
+  x.fillStyle="rgba(255,255,255,.35)";x.fillRect(0,4,W,3);x.restore()});setLater(800,function(){for(var i=0;i<10;i++)part({x:rnd(20,W-20),y:rnd(-200,-20),vy:rnd(1,2),g:.02,tv:2.5,size:rnd(8,12),shape:"pom",rot:rnd(-.4,.4),vr:rnd(-.02,.02),max:20,fade:0,col:"#fff"})})});
+add("ימים מיוחדים","מדורת ל\"ג בעומר",function(){
+  // fit the bonfire into the gap between the greeting and the clock
+  var st=cv.getBoundingClientRect(),qe=document.querySelector(".mock .q"),le=document.querySelector(".mock .l");
+  var top=qe?qe.getBoundingClientRect().bottom-st.top+10:H*.22,base=le?le.getBoundingClientRect().top-st.top-44:H*.5;
+  var sc=Math.max(.55,Math.min(1.5,(base-top)/175)),cx=W/2,smoke=[],emb=[];
+  function ease(k){k=Math.max(0,Math.min(1,k));return 1-Math.pow(1-k,3)}
+  // a log: rounded plank with bark edge and a cut end showing rings
+  function log(x0,y0,x1,y1,th,k){if(k<=0)return;var a=Math.atan2(y1-y0,x1-x0),L=Math.hypot(x1-x0,y1-y0);x.save();x.translate(x0,y0);x.rotate(a);x.globalAlpha=Math.min(1,k*1.6);
+    x.fillStyle="#7A4A24";x.beginPath();x.roundRect(0,-th/2,L,th,th/2);x.fill();
+    x.fillStyle="#9C6232";x.beginPath();x.roundRect(th*.3,-th/2,L-th*.6,th*.42,th*.2);x.fill();
+    x.strokeStyle="rgba(60,30,10,.45)";x.lineWidth=1.2;x.beginPath();x.moveTo(th*.8,th*.12);x.lineTo(L*.45,th*.12);x.moveTo(L*.55,-th*.05);x.lineTo(L-th*.9,-th*.05);x.stroke();
+    x.fillStyle="#E2B074";x.beginPath();x.ellipse(L,0,th*.32,th/2,0,0,TAU);x.fill();x.strokeStyle="#B9824A";x.lineWidth=1;x.beginPath();x.ellipse(L,0,th*.18,th*.28,0,0,TAU);x.stroke();x.restore()}
+  // one flat flame layer: several tongues that sway and flicker
+  function flame(w,h,col,t,seed,n){var pts=[],L=cx-w/2;x.fillStyle=col;x.beginPath();x.moveTo(L,base);
+    for(var i=0;i<n;i++){var c=(i+.5)/n,bell=1-Math.pow(2*c-1,2),fl=.86+.14*Math.sin(t*.009*(1+i*.21)+seed+i*2.1)+.06*Math.sin(t*.023+i*5+seed),
+      th=h*(.42+.58*bell)*fl,tx=L+w*c+Math.sin(t*.004+i+seed)*w*.06*(1+bell),vy=base-h*.32*(.6+.4*bell);
+      var px=L+w*(i/n);if(i>0)x.quadraticCurveTo(px,vy,px+w/n*.25,vy-h*.08);x.quadraticCurveTo(tx-w/n*.25,base-th*.55,tx,base-th);x.quadraticCurveTo(tx+w/n*.18,base-th*.5,L+w*((i+1)/n)-w/n*.25,vy-h*.06)}
+    x.quadraticCurveTo(L+w+2,base-h*.2,L+w,base);x.quadraticCurveTo(cx,base+h*.08,L,base);x.fill()}
+  bg(function(e,t){var lit=ease((e-1.15)/1.1),flick=.92+.08*Math.sin(t*.02)+.04*Math.sin(t*.051);
+    // warm light over the whole screen and on the ground
+    if(lit>0){x.save();x.globalCompositeOperation=S.add;var g=x.createRadialGradient(cx,base-40*sc,0,cx,base-40*sc,Math.max(W,H)*.75);g.addColorStop(0,"rgba(255,150,60,"+.42*lit*flick+")");g.addColorStop(.5,"rgba(255,110,40,"+.12*lit+")");g.addColorStop(1,"rgba(255,90,30,0)");x.fillStyle=g;x.fillRect(0,0,W,H);x.restore()}
+    x.save();x.fillStyle="rgba(40,20,10,.18)";x.beginPath();x.ellipse(cx,base+6*sc,95*sc,10*sc,0,0,TAU);x.fill();
+    if(lit>0){x.fillStyle="rgba(255,170,70,"+.35*lit*flick+")";x.beginPath();x.ellipse(cx,base+4*sc,80*sc,8*sc,0,0,TAU);x.fill()}x.restore();
+    // smoke puffs behind the fire
+    if(lit>.3&&Math.random()<.06)smoke.push({x:cx+rnd(-12,12)*sc,y:base-105*sc*lit,r:rnd(9,14)*sc,a:0,vx:rnd(-.2,.35),life:0});
+    x.save();smoke.forEach(function(s){s.life+=1/60;s.y-=.45;s.x+=s.vx+Math.sin(s.life*2)*.15;s.r+=.09;s.a=Math.min(.16,s.life*.3)*Math.max(0,1-s.life/2.2);x.fillStyle=isDark()?"rgba(200,200,210,"+s.a+")":"rgba(70,80,95,"+s.a+")";x.beginPath();x.arc(s.x,s.y,s.r,0,TAU);x.fill()});x.restore();
+    smoke=smoke.filter(function(s){return s.life<2.2});
+    // back logs (teepee, leaning in), dropping in one after another
+    var LG=[[-62,0,-10,-92,15,.0],[62,0,10,-92,15,.12],[-40,2,4,-100,14,.24],[40,2,-4,-100,14,.36],[-8,2,0,-104,13,.48]];
+    LG.forEach(function(l){var k=ease((e-l[5])/.55),drop=(1-k)*-40*sc;log(cx+l[0]*sc,base+l[1]*sc+drop,cx+l[2]*sc,base+l[3]*sc+drop,l[4]*sc,k)});
+    // flames grow from the base: red, orange, yellow, hot core
+    if(lit>0){x.save();x.translate(0,0);var H1=150*sc*lit*flick;
+      flame(96*sc,H1,"#E8431E",t,0,4);flame(80*sc,H1*.84,"#FF7A1F",t,1.7,4);flame(60*sc,H1*.64,"#FFB12E",t,3.1,3);flame(34*sc,H1*.4,"#FFE68A",t,4.6,2);x.restore()}
+    // front logs crossed over the fire
+    var FL=[[-70,6,52,-26,17,.6],[70,6,-52,-26,17,.75]];
+    FL.forEach(function(l){var k=ease((e-l[5])/.55),drop=(1-k)*-40*sc;log(cx+l[0]*sc,base+l[1]*sc+drop,cx+l[2]*sc,base+l[3]*sc+drop,l[4]*sc,k)});
+    // stones around
+    x.save();for(var i=0;i<7;i++){var k=ease((e-.9-i*.05)/.4);if(k<=0)continue;var sx=cx+(i-3)*30*sc,sy=base+8*sc,sr=(7+(i%3)*2)*sc*k;x.fillStyle=i%2?"#7D8794":"#8E99A6";x.beginPath();x.ellipse(sx,sy,sr*1.25,sr*.8,0,0,TAU);x.fill();x.fillStyle="rgba(255,255,255,.18)";x.beginPath();x.ellipse(sx-sr*.3,sy-sr*.3,sr*.45,sr*.22,0,0,TAU);x.fill()}x.restore();
+    // embers: small flat sparks that rise, drift and wink out
+    if(lit>.2)for(var j=0;j<2;j++)if(Math.random()<.5)emb.push({x:cx+rnd(-30,30)*sc,y:base-rnd(40,110)*sc*lit,vx:rnd(-.5,.5),vy:-rnd(1.2,2.6),l:1,s:rnd(1.6,3.2),c:pick(["#FFE68A","#FFB12E","#FF7A1F"]),w:rnd(0,TAU)});
+    x.save();emb.forEach(function(p){p.w+=.12;p.x+=p.vx+Math.sin(p.w)*.6;p.y+=p.vy;p.vy*=.995;p.l-=.011;x.globalAlpha=Math.max(0,p.l);x.fillStyle=p.c;x.save();x.translate(p.x,p.y);x.rotate(p.w);x.fillRect(-p.s/2,-p.s/2,p.s,p.s);x.restore()});x.restore();
+    emb=emb.filter(function(p){return p.l>0&&p.y>-20});
+  })});
+add("ימים מיוחדים","יום משכורת",function(){for(var i=0;i<40;i++)part({x:rnd(0,W),y:rnd(-H,-10),vy:rnd(1.5,3),g:.03,tv:4,size:rnd(8,13),shape:"coin",flip:rnd(0,TAU),vf:rnd(.1,.2),rot:rnd(-.3,.3),max:20,fade:0,col:"#fff"})});
+
+/* כיף */
+add("כיף","לבבות עולים",function(){for(var i=0;i<30;i++)part({x:rnd(0,W),y:H+rnd(10,H*.6),vy:-rnd(.8,1.8),size:rnd(6,13),col:pick(PAL.PINK),shape:"heart",sway:.03,rot:rnd(-.3,.3),max:20,fade:0})});
+add("כיף","מטוסי נייר",function(){for(var i=0;i<6;i++)setLater(i*450,function(){part({x:W+30,y:rnd(H*.15,H*.6),vx:-rnd(2.6,3.6),vy:0,size:rnd(9,13),shape:"plane",max:6,fade:0,col:"#fff",ph:rnd(0,TAU),upd:function(q){q.vy=Math.sin(q.life*2.4+q.ph)*.9;q.rot=PI+Math.atan2(-q.vy,q.vx<0?-q.vx:q.vx)*-1}})})});
+add("כיף","פריזמה",function(){bg(function(e){var k=Math.min(1,e/1.4);x.save();x.globalAlpha=k;var px=W*.22,py=H*.32;x.strokeStyle="rgba(255,255,255,.9)";x.fillStyle="rgba(255,255,255,.25)";x.lineWidth=2;x.beginPath();x.moveTo(px,py-34);x.lineTo(px+32,py+22);x.lineTo(px-32,py+22);x.closePath();x.fill();x.stroke();
+  x.strokeStyle="rgba(255,255,255,.9)";x.lineWidth=3;x.beginPath();x.moveTo(-10,py+10);x.lineTo(px-14,py);x.stroke();x.globalCompositeOperation=S.add;PAL.RAIN.forEach(function(c,i){x.fillStyle=c;x.globalAlpha=.55*k;x.beginPath();x.moveTo(px+14,py);x.lineTo(W+20,py+30+i*22*k);x.lineTo(W+20,py+30+(i+1)*22*k);x.closePath();x.fill()});x.restore()})});
+add("כיף","נוף הרים בזריחה",function(){bg(function(e){var k=Math.min(1,e/2.4),ea=1-Math.pow(1-k,3);var sy=H*.62-ea*H*.25;var g=x.createRadialGradient(W*.6,sy,0,W*.6,sy,W*.8);g.addColorStop(0,"rgba(255,214,120,"+.8*ea+")");g.addColorStop(1,"rgba(255,214,120,0)");x.fillStyle=g;x.fillRect(0,0,W,H);
+  x.fillStyle="#FFE08A";x.beginPath();x.arc(W*.6,sy,22,0,TAU);x.fill();[["#7FB6D6",.62,.08],["#3C7FA8",.7,.12],["#1B4A6E",.78,.16],["#00203F",.86,.2]].forEach(function(m,i){x.fillStyle=m[0];x.beginPath();x.moveTo(0,H);var base=H*m[1]+(1-ea)*40*(i+1);
+  for(var xx=0;xx<=W;xx+=8)x.lineTo(xx,base-Math.abs(Math.sin(xx*.012*(i+1)+i*2))*H*m[2]);x.lineTo(W,H);x.fill()})})});
+add("כיף","בועות צבע",function(){var o=O();for(var i=0;i<14;i++){var a=-PI/2+rnd(-1.2,1.2),s=rnd(2,6);part({x:o.x,y:o.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,drag:.96,size:rnd(14,40),col:pick(["rgba(6,179,229,.5)","rgba(250,22,100,.4)","rgba(255,201,74,.5)","rgba(124,92,255,.4)"]),max:8,fade:2})}});
+add("כיף","יריית זיקוק ושם",function(){rocket(W/2,H*.3,PAL.K,function(px,py){BOOM.chrys(px,py);setLater(300,function(){textParticles("יאללה!",PAL.K,Math.min(60,W/5))})})});
+
+add("ימים מיוחדים","ברוך השב",function(){textParticles("ברוך השב",PAL.K);setLater(3600,function(){sparkle(20,["#FFFFFF","#FFE7A3"],{max:4})})});
+add("טבע","עלים ברוח",function(){for(var i=0;i<60;i++)part({x:rnd(W*.3,W*1.6),y:rnd(-40,H),vx:-rnd(3,6),vy:rnd(-.5,1),size:rnd(6,11),col:pick(PAL.AUTUMN.concat(["#8FB04A","#B8C94F"])),shape:"leaf",rot:rnd(0,TAU),vr:rnd(-.15,.15),flip:rnd(0,TAU),vf:rnd(.08,.18),sway:.12,swf:.08,max:12,fade:0,kill:1});
+  bg(function(e){x.save();x.strokeStyle=isDark()?"rgba(255,255,255,.25)":"rgba(0,32,63,.18)";x.lineWidth=1.5;x.lineCap="round";for(var i=0;i<7;i++){var y=H*(.12+i*.12),o=((e*420+i*140)%(W+300))-150;x.beginPath();x.moveTo(W-o,y);x.bezierCurveTo(W-o-40,y-8,W-o-80,y+8,W-o-130,y);x.stroke()}x.restore()})});
+add("טבע","גל חום",function(){bg(function(e){var k=Math.min(1,e/1.5);x.save();var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,"rgba(255,170,60,"+.35*k+")");g.addColorStop(1,"rgba(255,90,40,"+.12*k+")");x.fillStyle=g;x.fillRect(0,0,W,H);
+  var cx=W*.75,cy=H*.16,r=46;x.globalCompositeOperation=S.add;var gl=x.createRadialGradient(cx,cy,0,cx,cy,r*4);gl.addColorStop(0,"rgba(255,230,140,"+.9*k+")");gl.addColorStop(1,"rgba(255,200,90,0)");x.fillStyle=gl;x.fillRect(0,0,W,H);x.globalCompositeOperation="source-over";
+  x.fillStyle="#FFE58A";x.globalAlpha=k;x.beginPath();x.arc(cx,cy,r*(1+.03*Math.sin(e*3)),0,TAU);x.fill();
+  x.strokeStyle="rgba(255,140,60,.45)";x.lineWidth=2;for(var i=0;i<6;i++){var y=H*.62+i*20;x.beginPath();for(var xx=0;xx<=W;xx+=6)x.lineTo(xx,y+Math.sin(xx*.05+e*4+i)*4);x.stroke()}x.restore()})});
+
+/* ===== holiday illustrations: one bespoke flat 2D piece per day, same zone, same light ===== */
+var Z={};
+function zone(){var st=cv.getBoundingClientRect(),qe=document.querySelector(".mock .q"),le=document.querySelector(".mock .l");
+  var top=qe?qe.getBoundingClientRect().bottom-st.top+12:H*.22,base=le?le.getBoundingClientRect().top-st.top-44:H*.5;
+  Z={cx:W/2,top:top,base:base,h:base-top,sc:Math.max(.6,Math.min(1.45,(base-top)/175))};return Z}
+function ez(e,a,d){var k=Math.max(0,Math.min(1,(e-a)/d));return 1-Math.pow(1-k,3)}
+function light(rgb,a,cy){if(a<=0)return;x.save();x.globalCompositeOperation=S.add;var r=Math.max(W,H)*.8,g=x.createRadialGradient(Z.cx,cy,0,Z.cx,cy,r);g.addColorStop(0,"rgba("+rgb+","+a+")");g.addColorStop(.45,"rgba("+rgb+","+a*.3+")");g.addColorStop(1,"rgba("+rgb+",0)");x.fillStyle=g;x.fillRect(0,0,W,H);x.restore()}
+function local(fn){x.save();x.translate(Z.cx,Z.base);x.scale(Z.sc,Z.sc);fn();x.restore()}
+function groundShadow(w,a){x.fillStyle="rgba(0,20,40,"+(a||.14)+")";x.beginPath();x.ellipse(0,4,w,7,0,0,TAU);x.fill()}
+function flameAt(fx,fy,h,t,i){x.save();x.globalCompositeOperation=S.add;var gl=x.createRadialGradient(fx,fy-h*.5,0,fx,fy-h*.5,h*2.2);gl.addColorStop(0,"rgba(255,200,90,.45)");gl.addColorStop(1,"rgba(255,170,60,0)");x.fillStyle=gl;x.beginPath();x.arc(fx,fy-h*.5,h*2.2,0,TAU);x.fill();x.restore();
+  var sw=Math.sin(t*.011+i*2)*h*.1;x.fillStyle="#FF8A1F";x.beginPath();x.moveTo(fx+sw,fy-h);x.quadraticCurveTo(fx+h*.42,fy-h*.35,fx,fy);x.quadraticCurveTo(fx-h*.42,fy-h*.35,fx+sw,fy-h);x.fill();
+  x.fillStyle="#FFE68A";x.beginPath();x.moveTo(fx+sw*.6,fy-h*.62);x.quadraticCurveTo(fx+h*.22,fy-h*.2,fx,fy-h*.02);x.quadraticCurveTo(fx-h*.22,fy-h*.2,fx+sw*.6,fy-h*.62);x.fill()}
+function flick(t,i){return 11+Math.sin(t*.018+i*1.7)*1.2+Math.sin(t*.043+i)*.7}
+
+/* ראש השנה: תפוח, צנצנת דבש עם כף שנוטפת, ורימון */
+add("חגים","תפוח בדבש",function(){zone();bg(function(e,t){light("255,190,80",.38*ez(e,.9,1.2),Z.base-70*Z.sc);local(function(){groundShadow(105);
+  var kj=ez(e,0,.6);x.save();x.translate(46,(1-kj)*-26);x.globalAlpha=kj;x.scale(1.22,1.22);
+  function body(){x.beginPath();x.moveTo(-24,-80);x.lineTo(24,-80);x.quadraticCurveTo(36,-74,36,-56);x.lineTo(36,-10);x.quadraticCurveTo(36,0,24,0);x.lineTo(-24,0);x.quadraticCurveTo(-36,0,-36,-10);x.lineTo(-36,-56);x.quadraticCurveTo(-36,-74,-24,-80);x.closePath()}
+  x.fillStyle="rgba(0,20,40,.12)";x.beginPath();x.ellipse(4,2,40,6,0,0,TAU);x.fill();
+  var hg=x.createLinearGradient(-36,0,36,0);hg.addColorStop(0,"#D9800C");hg.addColorStop(.45,"#F7B02E");hg.addColorStop(1,"#C46F08");x.fillStyle=hg;body();x.fill();
+  x.save();body();x.clip();x.fillStyle="rgba(255,255,255,.18)";x.fillRect(-36,-80,72,10);var gl=x.createLinearGradient(0,-80,0,0);gl.addColorStop(0,"rgba(255,230,160,.35)");gl.addColorStop(1,"rgba(120,50,0,.15)");x.fillStyle=gl;x.fillRect(-36,-80,72,80);
+  x.fillStyle="rgba(255,255,255,.55)";x.beginPath();x.roundRect(-29,-70,6,58,3);x.fill();x.fillStyle="rgba(255,255,255,.25)";x.beginPath();x.roundRect(-20,-70,3,40,2);x.fill();x.restore();
+  x.fillStyle="#FFF8EC";x.beginPath();x.roundRect(-24,-54,48,32,6);x.fill();x.save();x.beginPath();x.roundRect(-24,-54,48,32,6);x.clip();x.strokeStyle="rgba(233,179,65,.35)";x.lineWidth=1;for(var hr=0;hr<4;hr++)for(var hc=0;hc<5;hc++){var hx=-22+hc*11+(hr%2)*5.5,hy=-52+hr*9.5;x.beginPath();for(var v=0;v<6;v++){var a=v*PI/3+PI/6;x.lineTo(hx+Math.cos(a)*5,hy+Math.sin(a)*5)}x.closePath();x.stroke()}x.restore();
+  x.fillStyle="#7A3E0A";x.font="800 13px "+getComputedStyle(document.body).fontFamily;x.textAlign="center";x.textBaseline="middle";x.fillText("דבש",0,-37);
+  x.fillStyle="#E9E2D2";x.beginPath();x.roundRect(-26,-92,52,14,4);x.fill();
+  x.fillStyle="#C21F3A";x.beginPath();x.moveTo(-32,-90);x.quadraticCurveTo(0,-104,32,-90);x.lineTo(30,-82);x.quadraticCurveTo(26,-74,22,-78);x.quadraticCurveTo(14,-72,8,-78);x.quadraticCurveTo(0,-72,-8,-78);x.quadraticCurveTo(-14,-72,-22,-78);x.quadraticCurveTo(-26,-74,-30,-82);x.closePath();x.fill();
+  x.fillStyle="#FFFFFF";for(var dd=0;dd<6;dd++){x.beginPath();x.arc(-22+dd*9,-88+Math.abs(dd-2.5)*.8,1.6,0,TAU);x.fill()}
+  x.strokeStyle="#C8902A";x.lineWidth=2;x.beginPath();x.moveTo(-27,-82);x.lineTo(27,-82);x.stroke();x.beginPath();x.moveTo(18,-82);x.quadraticCurveTo(26,-74,22,-68);x.moveTo(18,-82);x.quadraticCurveTo(12,-72,16,-66);x.stroke();
+  x.restore();
+  // dipper lifts and drips
+  var kd=ez(e,.9,.7),dy=-130-8*kd;x.save();x.globalAlpha=kd;x.translate(52,0);x.strokeStyle="#9C6232";x.lineWidth=4;x.lineCap="round";x.beginPath();x.moveTo(-2,dy);x.lineTo(10,dy-36);x.stroke();
+  x.fillStyle="#C88A4A";x.beginPath();x.ellipse(-4,dy+6,9,12,-.2,0,TAU);x.fill();x.strokeStyle="#9C6232";x.lineWidth=1.5;for(var r=-2;r<=2;r++){x.beginPath();x.moveTo(-12,dy+6+r*4);x.lineTo(4,dy+4+r*4);x.stroke()}
+  x.fillStyle="#F4A623";x.beginPath();x.ellipse(-4,dy+14,6,4,0,0,TAU);x.fill();
+  if(e>1.6){var ph=((e-1.6)%1.4)/1.4,len=ph<.7?ph/.7*16:16,fall=ph<.7?0:(ph-.7)/.3*(-dy-70);x.beginPath();x.moveTo(-8,dy+16);x.quadraticCurveTo(-4,dy+18+len+fall,-4,dy+20+len+fall);x.quadraticCurveTo(-4,dy+18+len+fall,0,dy+16);x.fill();
+    x.beginPath();x.arc(-4,dy+20+len+fall,3.5,0,TAU);x.fill()}x.restore();
+  // apple drops in
+  var ka=ez(e,.35,.75);x.save();x.translate(-34,-6+(1-ka)*-60);x.globalAlpha=Math.min(1,ka*1.5);x.rotate((1-ka)*-.4);
+  x.fillStyle="#E0303A";x.beginPath();x.moveTo(0,-36);x.bezierCurveTo(16,-48,40,-36,38,-14);x.bezierCurveTo(36,6,18,12,8,9);x.bezierCurveTo(4,8,-4,8,-8,9);x.bezierCurveTo(-18,12,-36,6,-38,-14);x.bezierCurveTo(-40,-36,-16,-48,0,-36);x.fill();
+  x.fillStyle="#B81F2B";x.beginPath();x.moveTo(8,9);x.bezierCurveTo(18,12,36,6,38,-14);x.bezierCurveTo(34,0,22,6,8,9);x.fill();
+  x.fillStyle="rgba(255,255,255,.45)";x.beginPath();x.ellipse(-16,-24,6,10,-.5,0,TAU);x.fill();
+  x.strokeStyle="#6B4220";x.lineWidth=3;x.lineCap="round";x.beginPath();x.moveTo(0,-36);x.quadraticCurveTo(1,-44,4,-50);x.stroke();
+  x.fillStyle="#3DAA4E";x.beginPath();x.moveTo(3,-44);x.quadraticCurveTo(18,-58,28,-48);x.quadraticCurveTo(16,-38,3,-44);x.fill();x.restore();
+  // pomegranate in front
+  var kp=ez(e,.7,.6);if(kp>0){x.save();x.translate(4,-14);x.scale(kp,kp);x.fillStyle="#C21F3A";x.beginPath();x.arc(0,0,16,0,TAU);x.fill();x.fillStyle="#E8455F";x.beginPath();x.arc(-6,-6,6,0,TAU);x.fill();
+    x.fillStyle="#9C1530";x.beginPath();x.moveTo(-6,-14);x.lineTo(-4,-22);x.lineTo(-1,-16);x.lineTo(2,-22);x.lineTo(5,-16);x.lineTo(7,-21);x.lineTo(7,-13);x.closePath();x.fill();x.restore()}
+});if(e>1.2&&R()<.05)part({x:Z.cx+rnd(-80,80)*Z.sc,y:Z.base-rnd(40,130)*Z.sc,size:rnd(2,4),col:"#FFD45A",shape:"star4",max:1.4,fade:1,twk:6})})});
+
+/* נר זיכרון: ימים שקטים */
+add("חגים","נר זיכרון",function(){zone();bg(function(e,t){var k=ez(e,0,2.2);light("255,200,120",.2*ez(e,1.4,2),Z.base-50*Z.sc);local(function(){x.globalAlpha=k;groundShadow(40,.1);
+  x.fillStyle="rgba(255,255,255,.5)";x.strokeStyle="rgba(0,32,63,.22)";x.lineWidth=1.5;x.beginPath();x.roundRect(-22,-66,44,66,7);x.fill();x.stroke();
+  x.fillStyle="#F6F1E6";x.beginPath();x.roundRect(-19,-44,38,41,5);x.fill();x.fillStyle="rgba(0,32,63,.08)";x.fillRect(-19,-44,38,4);
+  x.strokeStyle="#3A2A1A";x.lineWidth=1.5;x.beginPath();x.moveTo(0,-44);x.lineTo(0,-49);x.stroke();
+  if(e>1.2){var g=ez(e,1.2,.8);flameAt(0,-48,flick(t,0)*g,t,0)}})})});
+
+/* סוכות: סוכה שנבנית, סכך, קישוטים ושרשרת אורות */
+add("חגים","סוכה",function(){zone();var fr=[];for(var i=0;i<16;i++)fr.push([-92+i*12.3,rnd(-.5,.5),rnd(18,28)]);
+  bg(function(e,t){light("255,210,120",.32*ez(e,1.8,1),Z.base-70*Z.sc);local(function(){groundShadow(110);
+  var kp=ez(e,0,.6);x.fillStyle="#9C6232";[-86,86].forEach(function(px){x.beginPath();x.roundRect(px-5,-118*kp,10,118*kp,3);x.fill()});
+  var kw=ez(e,.4,.7);if(kw>0){var w=168*kw;x.save();x.beginPath();x.rect(-w/2,-112,w,112);x.clip();for(var s=0;s<8;s++){x.fillStyle=s%2?"#FFFFFF":"#BFEAF8";x.fillRect(-84,-112+s*14,168,14)}
+    x.fillStyle="rgba(0,32,63,.08)";x.fillRect(-84,-112,168,112);x.fillStyle="#00203F";x.globalAlpha=.85;x.font="700 13px "+getComputedStyle(document.body).fontFamily;x.textAlign="center";x.fillText("חג שמח",0,-50);x.restore()}
+  var ks=ez(e,.95,.6);fr.forEach(function(f,i){var kk=ez(e,.95+i*.03,.5);if(kk<=0)return;x.save();x.translate(f[0],-118-(1-kk)*30);x.rotate(f[1]+Math.sin(t*.002+i)*.04);x.strokeStyle=i%3?"#3D8A3A":"#5BAA47";x.lineWidth=2.5;x.lineCap="round";
+    x.beginPath();x.moveTo(-f[2]/2,0);x.lineTo(f[2]/2,0);for(var j=-3;j<=3;j++){x.moveTo(j*f[2]/8,0);x.lineTo(j*f[2]/8-5,-7);x.moveTo(j*f[2]/8,0);x.lineTo(j*f[2]/8-5,6)}x.stroke();x.restore()});
+  var kd=ez(e,1.45,.6);[[-60,"#FFC94A",28],[-24,"#FA1664",40],[18,"#06B3E5",32],[56,"#7C5CFF",24]].forEach(function(d,i){if(kd<=0)return;var sw=Math.sin(t*.0025+i*1.3)*.12,len=d[2]*kd;x.save();x.translate(d[0],-110);x.rotate(sw);
+    x.strokeStyle="rgba(0,32,63,.4)";x.lineWidth=1;x.beginPath();x.moveTo(0,0);x.lineTo(0,len);x.stroke();x.fillStyle=d[1];x.beginPath();x.arc(0,len+6,6.5,0,TAU);x.fill();x.fillStyle="rgba(255,255,255,.5)";x.beginPath();x.arc(-2,len+4,2,0,TAU);x.fill();x.restore()});
+  var kl=ez(e,1.8,.4);for(var b=0;b<11;b++){var tt=b/10,lx=-80+tt*160,ly=-104+Math.sin(tt*PI)*10,on=kl*(.6+.4*Math.sin(t*.006+b*1.7));x.fillStyle="rgba(255,214,120,"+on+")";x.beginPath();x.arc(lx,ly,2.6,0,TAU);x.fill();
+    if(on>0){x.save();x.globalCompositeOperation=S.add;x.fillStyle="rgba(255,200,90,"+on*.25+")";x.beginPath();x.arc(lx,ly,8,0,TAU);x.fill();x.restore()}}
+  x.strokeStyle="rgba(0,32,63,.35)";x.lineWidth=.8;x.globalAlpha=kl;x.beginPath();for(var c=0;c<=40;c++){var u=c/40;x.lineTo(-80+u*160,-104+Math.sin(u*PI)*10)}x.stroke()})})});
+
+/* שמחת תורה: ספר תורה שנפתח ודגלים מתנופפים */
+add("חגים","ספר תורה ודגלים",function(){zone();bg(function(e,t){light("255,220,150",.3*ez(e,1,1),Z.base-70*Z.sc);local(function(){groundShadow(100);
+  function flag(px,ang,cols,ph){var kf=ez(e,.9,.6);if(kf<=0)return;x.save();x.translate(px,-20);x.rotate(ang*kf);x.globalAlpha=kf;x.strokeStyle="#9C6232";x.lineWidth=3.5;x.lineCap="round";x.beginPath();x.moveTo(0,0);x.lineTo(0,-120);x.stroke();
+    for(var s=0;s<14;s++){var u=s/14,dx=u*54,wy=Math.sin(t*.006+u*5+ph)*4*u;x.fillStyle=cols[Math.floor(u*cols.length)];x.fillRect(dx*(ang<0?-1:1)-(ang<0?4:0),-118+wy,4.2,36)}x.restore()}
+  flag(-70,-.22,["#06B3E5","#FFFFFF","#06B3E5"],0);flag(70,.22,["#FA1664","#FFC94A","#FA1664"],1.5);
+  var ko=ez(e,.2,1.1),half=8+50*ko;
+  x.fillStyle="#F3E6C8";x.fillRect(-half,-104,half*2,92);x.fillStyle="rgba(150,110,60,.18)";x.fillRect(-half,-104,half*2,5);x.fillRect(-half,-17,half*2,5);
+  x.save();x.globalAlpha=ko;x.strokeStyle="rgba(60,40,20,.55)";x.lineWidth=1.3;for(var col=0;col<2;col++)for(var r=0;r<10;r++){var cx0=-half+10+col*(half-6),w=(half-16)*(.7+.3*((r*7+col)%3)/2);if(w<=2)continue;x.beginPath();x.moveTo(cx0,-92+r*7.5);x.lineTo(cx0+w,-92+r*7.5);x.stroke()}x.restore();
+  [-half,half].forEach(function(rx,i){x.fillStyle="#7A4A24";x.beginPath();x.roundRect(rx-4,-128,8,124,3);x.fill();x.fillStyle="#E8C27A";x.beginPath();x.roundRect(rx-10,-110,20,8,3);x.fill();x.beginPath();x.roundRect(rx-10,-16,20,8,3);x.fill();
+    x.fillStyle="#C8902A";x.beginPath();x.arc(rx,-134,6,0,TAU);x.fill();x.beginPath();x.arc(rx,2,5,0,TAU);x.fill()})});
+  if(e>1.3&&R()<.05)part({x:Z.cx+rnd(-90,90)*Z.sc,y:Z.base-rnd(60,150)*Z.sc,size:rnd(2,4),col:pick(["#FFD45A","#FFFFFF"]),shape:"star4",max:1.4,fade:1,twk:6})})});
+
+/* חנוכה: חנוכייה עם זרועות, נדלקת נר אחרי נר */
+add("חגים","חנוכייה",function(){zone();bg(function(e,t){var kb=ez(e,0,.8);light("255,190,90",.36*ez(e,1,1.4),Z.base-90*Z.sc);local(function(){groundShadow(80);x.globalAlpha=kb;
+  var g=x.createLinearGradient(0,-110,0,0);g.addColorStop(0,"#FFE7A3");g.addColorStop(.5,"#E9B341");g.addColorStop(1,"#A8761A");x.strokeStyle=g;x.fillStyle=g;x.lineCap="round";
+  x.beginPath();x.moveTo(-26,0);x.lineTo(26,0);x.lineTo(14,-10);x.lineTo(-14,-10);x.closePath();x.fill();x.lineWidth=5;x.beginPath();x.moveTo(0,-10);x.lineTo(0,-104);x.stroke();
+  x.lineWidth=4;for(var i=1;i<=4;i++){var r=i*17,ka=ez(e,.15+i*.12,.5);x.beginPath();x.arc(0,-104,r,PI*(1-ka)/2,PI-PI*(1-ka)/2);x.stroke()}
+  var NIGHT=window.__night||8;var pos=[0,-68,-51,-34,-17,17,34,51,68];pos.forEach(function(px,i){var sh=i===0,cy=sh?-122:-104;x.fillStyle=g;x.beginPath();x.moveTo(px-7,cy);x.lineTo(px+7,cy);x.lineTo(px+4,cy+6);x.lineTo(px-4,cy+6);x.closePath();x.fill();
+    if(!sh&&i<9-NIGHT)return;x.fillStyle=i%2?"#BFEAF8":"#FFFFFF";x.fillRect(px-3.5,cy-24,7,24);x.strokeStyle="#3A2A1A";x.lineWidth=1.2;x.beginPath();x.moveTo(px,cy-24);x.lineTo(px,cy-28);x.stroke();
+    var lit=e-1.1-(sh?0:(i-(9-NIGHT)+1)*.32);if(lit>0)flameAt(px,cy-27,flick(t,i)*Math.min(1,lit/.3),t,i)})});
+  if(e>1.5&&R()<.06)part({x:Z.cx+rnd(-70,70)*Z.sc,y:Z.base-rnd(130,150)*Z.sc,vx:rnd(-.2,.2),vy:-rnd(.6,1.2),size:1.4,col:"#FFD678",max:1.3,fade:1})})});
+
+/* ט״ו בשבט: שקדייה שגדלה ופורחת */
+add("חגים","שקדייה פורחת",function(){zone();var B=[[0,0,0,-60,9,0],[0,-60,-38,-100,6,.4],[0,-60,34,-108,6,.45],[0,-60,4,-128,5,.5],[-38,-100,-70,-112,3.5,.8],[-38,-100,-44,-136,3.5,.85],[34,-108,66,-122,3.5,.85],[34,-108,30,-140,3,.9],[4,-128,-14,-150,3,.95],[4,-128,22,-152,3,.95]];
+  var F=[];B.forEach(function(b,i){if(i<1)return;for(var j=0;j<(i<4?2:3);j++){var u=rnd(.45,1);F.push([b[0]+(b[2]-b[0])*u+rnd(-6,6),b[1]+(b[3]-b[1])*u+rnd(-6,6),1.3+b[5]+R()*.8,rnd(5,8)])}});
+  bg(function(e,t){light("255,190,215",.3*ez(e,1.4,1.2),Z.base-90*Z.sc);local(function(){groundShadow(70);x.lineCap="round";
+    x.fillStyle="#7A5236";x.beginPath();x.ellipse(0,0,26,6,0,0,TAU);x.fill();
+    B.forEach(function(b){var k=ez(e,b[5],.45);if(k<=0)return;x.strokeStyle="#6B4A33";x.lineWidth=b[4];x.beginPath();x.moveTo(b[0],b[1]);x.lineTo(b[0]+(b[2]-b[0])*k,b[1]+(b[3]-b[1])*k);x.stroke()});
+    F.forEach(function(f,i){var k=ez(e,f[2],.45);if(k<=0)return;var s=f[3]*k,sw=Math.sin(t*.002+i)*.6;x.save();x.translate(f[0]+sw,f[1]);x.rotate(i);
+      for(var p=0;p<5;p++){var a=p*TAU/5;x.fillStyle=p%2?"#FFE3EE":"#FFFFFF";x.beginPath();x.ellipse(Math.cos(a)*s*.55,Math.sin(a)*s*.55,s*.55,s*.4,a,0,TAU);x.fill()}
+      x.fillStyle="#F06292";x.beginPath();x.arc(0,0,s*.28,0,TAU);x.fill();x.restore()})});
+  if(e>2.4&&R()<.05)part({x:Z.cx+rnd(-60,60)*Z.sc,y:Z.base-rnd(110,150)*Z.sc,vx:rnd(-.3,.3),vy:rnd(.4,.8),size:rnd(3,4.5),col:pick(["#FFFFFF","#FFD3E2"]),shape:"petal",rot:rnd(0,TAU),vr:rnd(-.05,.05),flip:0,vf:.08,sway:.02,max:4,fade:1})})});
+
+/* פורים: רעשן שמסתובב, מסכה ואוזן המן */
+add("חגים","רעשן ומסכה",function(){zone();var ang=0;bg(function(e,t){light("250,22,100",.2*ez(e,.6,1),Z.base-80*Z.sc);var spd=e<.4?0:Math.max(.02,.45*Math.exp(-(e-.4)*.9));ang+=spd;
+  local(function(){groundShadow(105);
+    var kg=ez(e,0,.6);x.save();x.translate(44,0);x.globalAlpha=kg;x.strokeStyle="#9C6232";x.lineWidth=6;x.lineCap="round";x.beginPath();x.moveTo(0,0);x.lineTo(0,-74);x.stroke();
+    x.save();x.translate(0,-84);x.scale(Math.cos(ang),1);x.fillStyle="#FA1664";x.beginPath();x.roundRect(-4,-14,62,28,6);x.fill();x.fillStyle="#FFC94A";x.fillRect(10,-14,8,28);x.fillRect(30,-14,8,28);x.fillStyle="#06B3E5";x.beginPath();x.arc(56,0,7,0,TAU);x.fill();x.restore();
+    x.fillStyle="#C8902A";x.beginPath();x.arc(0,-84,7,0,TAU);x.fill();
+    if(spd>.08){x.strokeStyle="rgba(250,22,100,"+Math.min(.6,spd*1.4)+")";x.lineWidth=2;for(var m=0;m<3;m++){x.beginPath();x.arc(0,-84,66+m*8,-.6+m*.2-ang*.3,.2+m*.2-ang*.3);x.stroke()}}x.restore();
+    var km=ez(e,.3,.7);x.save();x.translate(-62,-74+(1-km)*20+Math.sin(t*.002)*3);x.rotate(-.12);x.globalAlpha=km;x.strokeStyle="#C8902A";x.lineWidth=3;x.beginPath();x.moveTo(30,6);x.lineTo(30,70);x.stroke();
+    x.fillStyle="#7C5CFF";x.beginPath();x.moveTo(-40,-8);x.bezierCurveTo(-36,-24,-12,-22,0,-12);x.bezierCurveTo(12,-22,36,-24,40,-8);x.bezierCurveTo(42,10,22,16,10,8);x.quadraticCurveTo(0,2,-10,8);x.bezierCurveTo(-22,16,-42,10,-40,-8);x.closePath();
+    x.moveTo(-8,-4);x.ellipse(-18,-4,10,6,.15,0,TAU);x.moveTo(28,-4);x.ellipse(18,-4,10,6,-.15,0,TAU);x.fill("evenodd");
+    x.strokeStyle="#FFC94A";x.lineWidth=2;x.beginPath();x.moveTo(-40,-8);x.bezierCurveTo(-36,-24,-12,-22,0,-12);x.bezierCurveTo(12,-22,36,-24,40,-8);x.stroke();
+    x.fillStyle="#FA1664";x.beginPath();x.moveTo(-40,-12);x.quadraticCurveTo(-56,-40,-46,-58);x.quadraticCurveTo(-42,-36,-34,-18);x.fill();x.fillStyle="#06B3E5";x.beginPath();x.moveTo(-36,-16);x.quadraticCurveTo(-40,-46,-26,-60);x.quadraticCurveTo(-28,-36,-28,-20);x.fill();x.restore();
+    var kh=ez(e,.6,.6);x.save();x.translate(-6,-10);x.scale(kh,kh);x.fillStyle="#E2B074";x.beginPath();x.moveTo(0,-20);x.quadraticCurveTo(4,-20,18,6);x.quadraticCurveTo(20,10,14,10);x.lineTo(-14,10);x.quadraticCurveTo(-20,10,-18,6);x.quadraticCurveTo(-4,-20,0,-20);x.fill();
+    x.fillStyle="#4A2A3A";x.beginPath();x.moveTo(0,-6);x.lineTo(7,5);x.lineTo(-7,5);x.closePath();x.fill();x.restore()})})});
+
+/* פסח: מצה שנשברת וכלניות שפורחות */
+add("חגים","מצה וכלניות",function(){zone();var holes=[];for(var i=0;i<60;i++)holes.push([rnd(-44,44),rnd(-44,44)]);var jag=[[0,-52]];for(var j=1;j<8;j++)jag.push([rnd(-6,6),-52+j*13]);
+  bg(function(e,t){light("255,120,110",.22*ez(e,1.5,1),Z.base-70*Z.sc);local(function(){groundShadow(110);
+    function flower(px,st,h,s){var ks=ez(e,st,.5),kb=ez(e,st+.4,.45);x.strokeStyle="#3D8A3A";x.lineWidth=3;x.lineCap="round";x.beginPath();x.moveTo(px,0);x.quadraticCurveTo(px+4,-h*.5*ks,px,-h*ks);x.stroke();
+      x.fillStyle="#4E9A3E";x.beginPath();x.ellipse(px-7,-h*.3*ks,7,3,-.6,0,TAU);x.fill();if(kb<=0)return;x.save();x.translate(px,-h);x.scale(kb,kb);x.rotate(Math.sin(t*.002+px)*.08);
+      for(var p=0;p<6;p++){var a=p*TAU/6;x.fillStyle=p%2?"#E52B3A":"#D11F2E";x.beginPath();x.ellipse(Math.cos(a)*s*.6,Math.sin(a)*s*.6,s*.62,s*.42,a,0,TAU);x.fill()}x.fillStyle="#1B1B2A";x.beginPath();x.arc(0,0,s*.32,0,TAU);x.fill();
+      x.fillStyle="#3A3A55";for(var d=0;d<8;d++){var b=d*TAU/8;x.beginPath();x.arc(Math.cos(b)*s*.42,Math.sin(b)*s*.42,1.2,0,TAU);x.fill()}x.restore()}
+    flower(-92,1.6,62,11);flower(-74,1.8,44,9);flower(84,1.7,56,10);flower(100,1.95,38,8);
+    var km=ez(e,0,.6),br=ez(e,1.2,.7);
+    function half(side){x.save();x.translate(side*br*12,-60+(1-km)*-24);x.rotate(.08+side*br*.1);x.beginPath();x.moveTo(side*-50,-52);jag.forEach(function(p){x.lineTo(p[0],p[1])});x.lineTo(side*-50,52);x.closePath();x.clip();
+      x.globalAlpha=km;x.fillStyle="#E8C98A";x.beginPath();x.roundRect(-50,-50,100,100,6);x.fill();x.fillStyle="rgba(170,110,40,.35)";for(var s=0;s<5;s++)x.fillRect(-50,-38+s*20,100,3);
+      x.fillStyle="rgba(120,70,20,.5)";holes.forEach(function(h){x.beginPath();x.arc(h[0],h[1],1.3,0,TAU);x.fill()});x.fillStyle="rgba(150,80,20,.28)";[[-20,-18,9],[16,10,12],[-8,26,7],[26,-26,6]].forEach(function(b){x.beginPath();x.ellipse(b[0],b[1],b[2],b[2]*.7,.4,0,TAU);x.fill()});x.restore()}
+    half(1);half(-1);
+    if(br>0&&br<.9&&R()<.4)part({x:Z.cx+rnd(-4,4)*Z.sc,y:Z.base+rnd(-110,-10)*Z.sc,vx:rnd(-1,1),vy:rnd(-.5,1),g:.15,size:rnd(1.2,2.4),col:"#D9B070",shape:"sq",rot:rnd(0,TAU),max:1,fade:1})})})});
+
+/* יום העצמאות: דגל עולה על התורן, מנגל עם שיפודים, וזיקוקים כחול לבן */
+add("חגים","דגל ומנגל",function(){zone();var smk=[];bg(function(e,t){light("6,179,229",.26*ez(e,.8,1.2),Z.base-90*Z.sc);local(function(){groundShadow(115);
+  x.fillStyle="#AEB8C4";x.beginPath();x.roundRect(-74,-162,5,162,2);x.fill();x.fillStyle="#C8902A";x.beginPath();x.arc(-71.5,-164,4.5,0,TAU);x.fill();
+  var kf=ez(e,.2,1.4),fy=-96-kf*56;x.save();x.translate(-69,fy);for(var s=0;s<24;s++){var u=s/24,wy=Math.sin(t*.006-u*6)*5*u;x.fillStyle="#FFFFFF";x.fillRect(u*80,wy,3.6,54);x.fillStyle="#1F5FBF";x.fillRect(u*80,wy+5,3.6,7);x.fillRect(u*80,wy+42,3.6,7)}
+    var wc=Math.sin(t*.006-3)*5*.5;x.strokeStyle="#1F5FBF";x.lineWidth=2.4;x.beginPath();for(var tr=0;tr<2;tr++){var r=12,a0=tr?PI/2:-PI/2;for(var v=0;v<=3;v++){var a=a0+v*TAU/3;var px=40+Math.cos(a)*r,py=27+wc+Math.sin(a)*r;v?x.lineTo(px,py):x.moveTo(px,py)}}x.stroke();x.restore();
+  var km=ez(e,.5,.7);x.save();x.translate(56,0);x.globalAlpha=km;x.strokeStyle="#3A3F47";x.lineWidth=3;x.beginPath();x.moveTo(-28,0);x.lineTo(-20,-30);x.moveTo(28,0);x.lineTo(20,-30);x.stroke();
+    x.fillStyle="#2F3540";x.beginPath();x.moveTo(-38,-44);x.lineTo(38,-44);x.lineTo(30,-26);x.lineTo(-30,-26);x.closePath();x.fill();
+    var cg=.6+.4*Math.sin(t*.01);x.fillStyle="rgba(255,"+Math.round(110+60*cg)+",40,1)";x.fillRect(-32,-46,64,4);
+    for(var k=0;k<3;k++){var sx=-24+k*24,sy=-52;x.strokeStyle="#B0B8C2";x.lineWidth=1.6;x.beginPath();x.moveTo(sx-14,sy);x.lineTo(sx+14,sy);x.stroke();[["#8B4A2B",-8],["#E0303A",-1],["#8B4A2B",6],["#3DAA4E",12]].forEach(function(c){x.fillStyle=c[0];x.beginPath();x.roundRect(sx+c[1]-3,sy-4,6,8,2);x.fill()})}x.restore();
+  if(km>.5&&R()<.07)smk.push({x:56+rnd(-16,16),y:-60,r:rnd(4,6),l:0});x.save();smk.forEach(function(s){s.l+=1/60;s.y-=.6;s.x+=Math.sin(s.l*2)*.3;s.r+=.08;x.fillStyle=isDark()?"rgba(220,220,230,"+.1*(1-s.l/2.2)+")":"rgba(90,100,115,"+.08*(1-s.l/2.2)+")";x.beginPath();x.arc(s.x,s.y,s.r,0,TAU);x.fill()});x.restore();smk=smk.filter(function(s){return s.l<2.2})});
+  if(e>1.6&&R()<.035){var bx=Z.cx+(R()<.5?-1:1)*rnd(70,120)*Z.sc,by=Z.top+rnd(0,30)*Z.sc;burst(bx,by,40,2.2,["#1F5FBF","#FFFFFF","#06B3E5"],{g:.03,size:1.5,trail:5,max:1.4,glow:0})}})});
+
+/* שבועות: אלומת חיטה קשורה בסרט, ופרחים לבנים */
+add("חגים","אלומת חיטה",function(){zone();var ST=[];for(var i=0;i<11;i++){var a=-PI/2+(i-5)*.11;ST.push([a,rnd(118,140),.1+Math.abs(i-5)*.07])}
+  bg(function(e,t){light("255,225,150",.3*ez(e,1.2,1.2),Z.base-80*Z.sc);local(function(){groundShadow(90);x.lineCap="round";
+    ST.forEach(function(s,i){var k=ez(e,s[2],.6);if(k<=0)return;var sw=Math.sin(t*.0018+i*.6)*.025,a=s[0]+sw,L=s[1]*k,tx=Math.cos(a)*L,ty=Math.sin(a)*L-8;x.strokeStyle="#C9A24A";x.lineWidth=2.2;x.beginPath();x.moveTo(0,-8);x.quadraticCurveTo(tx*.5,ty*.55,tx,ty);x.stroke();
+      if(k>.8){var kh=ez(e,s[2]+.5,.4);x.save();x.translate(tx,ty);x.rotate(a+PI/2);x.scale(kh,kh);for(var g=0;g<6;g++){x.fillStyle=g%2?"#E9B341":"#F2C14B";x.beginPath();x.ellipse(-3.2,-g*5,3.2,4.6,-.4,0,TAU);x.fill();x.beginPath();x.ellipse(3.2,-g*5,3.2,4.6,.4,0,TAU);x.fill()}
+        x.strokeStyle="#D9B45E";x.lineWidth=1;x.beginPath();x.moveTo(0,-28);x.lineTo(-3,-44);x.moveTo(0,-28);x.lineTo(3,-44);x.stroke();x.restore()}});
+    var kr=ez(e,.9,.5);if(kr>0){x.save();x.globalAlpha=kr;x.fillStyle="#06B3E5";x.beginPath();x.roundRect(-12,-42,24,10,3);x.fill();x.beginPath();x.moveTo(0,-37);x.quadraticCurveTo(-22,-56,-24,-32);x.closePath();x.fill();x.beginPath();x.moveTo(0,-37);x.quadraticCurveTo(22,-56,24,-32);x.closePath();x.fill();
+      x.strokeStyle="#06B3E5";x.lineWidth=4;x.beginPath();x.moveTo(-2,-34);x.lineTo(-10,-14);x.moveTo(2,-34);x.lineTo(12,-16);x.stroke();x.restore()}
+    [[-78,1.4],[-60,1.6],[66,1.5],[84,1.75]].forEach(function(f,i){var k=ez(e,f[1],.45);if(k<=0)return;x.save();x.translate(f[0],-8);x.scale(k,k);for(var p=0;p<8;p++){var a=p*TAU/8;x.fillStyle="#FFFFFF";x.beginPath();x.ellipse(Math.cos(a)*7,Math.sin(a)*7,6,2.8,a,0,TAU);x.fill()}x.fillStyle="#FFC94A";x.beginPath();x.arc(0,0,3.6,0,TAU);x.fill();x.restore()})})})});
+
+/* שנה אזרחית חדשה: שתי כוסות מתנגשות, בועות, והשנה בזהב */
+add("חגים","כוסות שמתנגשות",function(){zone();var yr=new Date().getMonth()>=9?new Date().getFullYear()+1:new Date().getFullYear(),bub=[],hit=0;
+  bg(function(e,t){light("255,214,120",.3*ez(e,1.1,1),Z.base-80*Z.sc);local(function(){groundShadow(80);
+    var ky=ez(e,1.3,.8);x.save();x.globalAlpha=ky*.9;x.fillStyle="#E9B341";x.font="800 46px "+getComputedStyle(document.body).fontFamily;x.textAlign="center";x.textBaseline="middle";x.fillText(String(yr),0,-150+(1-ky)*10);x.restore();
+    var kc=ez(e,0,1.1),tilt=.16*kc;if(e>1.05&&!hit){hit=1;for(var i=0;i<26;i++){var a=-PI/2+rnd(-1.3,1.3),s=rnd(1.5,4);part({x:Z.cx,y:Z.base-108*Z.sc,vx:Math.cos(a)*s,vy:Math.sin(a)*s,g:.04,drag:.96,size:rnd(2,4.5),col:pick(["#FFD45A","#FFFFFF","#FFE7A3"]),shape:"star4",max:rnd(.8,1.5),fade:1})}}
+    function glass(side){x.save();var gx=side*(18+(1-kc)*70);x.translate(gx,0);x.rotate(-side*tilt);x.strokeStyle="rgba(0,32,63,.35)";x.lineWidth=1.6;x.fillStyle="rgba(255,255,255,.4)";
+      x.beginPath();x.moveTo(-16,0);x.lineTo(16,0);x.stroke();x.beginPath();x.moveTo(0,0);x.lineTo(0,-46);x.stroke();
+      x.beginPath();x.moveTo(-14,-120);x.lineTo(14,-120);x.quadraticCurveTo(14,-50,0,-46);x.quadraticCurveTo(-14,-50,-14,-120);x.closePath();x.fill();x.stroke();
+      x.save();x.clip();x.fillStyle="#F7D774";x.fillRect(-16,-100,32,56);x.fillStyle="rgba(255,255,255,.7)";x.fillRect(-16,-102,32,3);
+      bub.forEach(function(b){if(b.s===side){x.fillStyle="rgba(255,255,255,.8)";x.beginPath();x.arc(b.x,b.y,b.r,0,TAU);x.fill()}});x.restore();
+      x.fillStyle="rgba(255,255,255,.55)";x.beginPath();x.moveTo(-10,-114);x.lineTo(-6,-114);x.lineTo(-7,-64);x.closePath();x.fill();x.restore()}
+    if(R()<.5)bub.push({s:R()<.5?-1:1,x:rnd(-6,6),y:-50,r:rnd(.8,1.8)});bub.forEach(function(b){b.y-=.7;b.x+=Math.sin(b.y*.2)*.1});bub=bub.filter(function(b){return b.y>-98});
+    glass(-1);glass(1);
+    if(hit){var kr=Math.min(1,(e-1.05)/.6);if(kr<1){x.strokeStyle="rgba(255,214,120,"+(1-kr)+")";x.lineWidth=2;for(var r=0;r<2;r++){x.beginPath();x.arc(0,-108,12+kr*40+r*12,0,TAU);x.stroke()}}}})})});
+
+/* ===== full-screen environments for holidays (combined with each illustration) ===== */
+function garland(y,sag,n,k,item,swing){var L=W+20;x.save();x.strokeStyle=isDark()?"rgba(255,255,255,.35)":"rgba(0,32,63,.35)";x.lineWidth=1;x.beginPath();for(var c=0;c<=40;c++){var u=c/40;x.lineTo(-10+u*L,y+Math.sin(u*PI)*sag*k)}x.stroke();
+  for(var i=0;i<n;i++){var u=(i+.5)/n,kk=Math.max(0,Math.min(1,k*1.6-u*.6));if(kk<=0)continue;var px=-10+u*L,py=y+Math.sin(u*PI)*sag*k;x.save();x.translate(px,py);x.rotate((swing||0)*Math.sin(S.e*2+i));x.globalAlpha=kk;item(i,kk);x.restore()}x.restore()}
+function topY(){return 48}
+add("סביבה","טפטופי דבש",function(){zone();var D2=[];for(var i=0;i<22;i++)D2.push({x:(i+.5)/22,l:rnd(18,70),ph:R()*3});
+  bg(function(e,t){var k=ez(e,.2,2.2);x.save();var g=x.createLinearGradient(0,0,0,90);g.addColorStop(0,"#F7B733");g.addColorStop(1,"#E9961B");x.fillStyle=g;x.beginPath();x.moveTo(0,0);x.lineTo(W,0);
+    for(var i=D2.length-1;i>=0;i--){var d=D2[i],cx=d.x*W,w=W/22,len=10+d.l*k;x.lineTo(cx+w/2,12);x.quadraticCurveTo(cx+w*.32,12,cx+w*.28,len*.7);x.quadraticCurveTo(cx+w*.28,len+6,cx,len+6);x.quadraticCurveTo(cx-w*.28,len+6,cx-w*.28,len*.7);x.quadraticCurveTo(cx-w*.32,12,cx-w/2,12)}
+    x.lineTo(0,12);x.closePath();x.globalAlpha=.95;x.fill();x.fillStyle="rgba(255,255,255,.4)";x.fillRect(0,3,W,2.5);D2.forEach(function(d){x.beginPath();x.ellipse(d.x*W-3,10+d.l*k*.55,1.6,5,0,0,TAU);x.fill()});x.restore();
+    if(k>.8&&R()<.04){var d=pick(D2);part({x:d.x*W,y:16+d.l,vy:.5,g:.18,size:4,col:"#F4A623",shape:"dot",max:4,fade:0})}
+    if(R()<.03)part({x:R()<.5?rnd(8,40):rnd(W-40,W-8),y:rnd(H*.2,H*.75),size:rnd(3,5),col:"#C21F3A",shape:"dot",twk:3,max:3,fade:1,fin:.4})})});
+add("סביבה","סכך מלא",function(){zone();var fr=[];for(var i=0;i<34;i++)fr.push([i/33*W+rnd(-6,6),rnd(-.4,.4),rnd(30,46),rnd(0,1)]);
+  bg(function(e,t){x.save();fr.forEach(function(f,i){var k=ez(e,.1+f[3]*.6,.6);if(k<=0)return;x.save();x.translate(f[0],8-(1-k)*30);x.rotate(f[1]+Math.sin(t*.0015+i)*.05);x.strokeStyle=i%3?"#3D8A3A":"#5BAA47";x.lineWidth=3;x.lineCap="round";x.beginPath();x.moveTo(-f[2]/2,0);x.lineTo(f[2]/2,0);
+      for(var j=-4;j<=4;j++){x.moveTo(j*f[2]/10,0);x.lineTo(j*f[2]/10-6,-9);x.moveTo(j*f[2]/10,0);x.lineTo(j*f[2]/10-6,9)}x.stroke();x.restore()});
+    var kl=ez(e,1.2,.6);[[22,12],[34,16]].forEach(function(r,ri){garland(r[0],r[1],14,kl,function(i){var on=.55+.45*Math.sin(t*.006+i*1.9+ri);x.fillStyle="rgba(255,214,120,"+on+")";x.beginPath();x.arc(0,3,3.2,0,TAU);x.fill();x.globalCompositeOperation=S.add;x.fillStyle="rgba(255,200,90,"+on*.3+")";x.beginPath();x.arc(0,3,10,0,TAU);x.fill()})});
+    var kd=ez(e,1,.7);[["#FFC94A",70],["#FA1664",110],["#06B3E5",58],["#7C5CFF",96],["#FFC94A",80],["#3CDCC8",120]].forEach(function(d,i){var px=(i+.5)/6*W,len=d[1]*kd;if(kd<=0)return;x.save();x.translate(px,14);x.rotate(Math.sin(t*.002+i*1.1)*.1);x.strokeStyle="rgba(0,32,63,.35)";x.lineWidth=1;x.beginPath();x.moveTo(0,0);x.lineTo(0,len);x.stroke();
+      if(i%2){x.fillStyle=d[0];x.beginPath();x.arc(0,len+8,8,0,TAU);x.fill();x.fillStyle="rgba(255,255,255,.5)";x.beginPath();x.arc(-3,len+5,2.4,0,TAU);x.fill()}else{x.fillStyle=d[0];x.beginPath();x.moveTo(0,len);x.lineTo(9,len+12);x.lineTo(0,len+24);x.lineTo(-9,len+12);x.closePath();x.fill();x.fillStyle="rgba(255,255,255,.35)";x.beginPath();x.moveTo(0,len);x.lineTo(9,len+12);x.lineTo(0,len+12);x.fill()}x.restore()});x.restore()})});
+add("סביבה","דגלי שמחת תורה",function(){zone();var C=[["#06B3E5","#FFFFFF"],["#FA1664","#FFC94A"],["#7C5CFF","#FFFFFF"],["#FFC94A","#06B3E5"],["#3CDCC8","#FFFFFF"]];
+  bg(function(e,t){var k=ez(e,.1,1.4);[[4,16]].forEach(function(r,ri){garland(r[0],r[1],11,k,function(i){var c=C[(i+ri*2)%C.length],w=Math.sin(t*.006+i)*2;x.fillStyle=c[0];x.beginPath();x.moveTo(-11,0);x.lineTo(11,0);x.lineTo(11+w*.3,18);x.lineTo(-11+w*.3,18);x.closePath();x.fill();x.fillStyle=c[1];x.fillRect(-11,6,22,5)},.08)});
+    if(R()<.04)part({x:rnd(0,W),y:rnd(90,H*.8),size:rnd(2,4),col:pick(["#FFD45A","#FFFFFF","#06B3E5"]),shape:"star4",max:1.6,fade:1,twk:6})})});
+add("סביבה","אורות חנוכה",function(){zone();for(var i=0;i<20;i++)part({x:rnd(10,W-10),y:H+rnd(0,H),vy:-rnd(.25,.6),size:rnd(5,9),col:"#fff",shape:"dot",max:30,fade:0,fin:rnd(.5,3),sway:.006,kill:0,a:.9,upd:function(q){if(q.y<-20)q.y=H+20},flame:1});
+  P.forEach(function(p){if(p.flame){p.shape="cflame"}});
+  shapes.cflame=function(p,s){var t=performance.now();x.globalCompositeOperation=S.add;var g=x.createRadialGradient(0,-s*.5,0,0,-s*.5,s*2.2);g.addColorStop(0,"rgba(255,200,90,.35)");g.addColorStop(1,"rgba(255,170,60,0)");x.fillStyle=g;x.beginPath();x.arc(0,-s*.5,s*2.2,0,TAU);x.fill();x.globalCompositeOperation="source-over";
+    var h=s*(1+.12*Math.sin(t*.015+p.sw*7));x.fillStyle="#FF8A1F";x.beginPath();x.moveTo(0,-h);x.quadraticCurveTo(h*.42,-h*.35,0,0);x.quadraticCurveTo(-h*.42,-h*.35,0,-h);x.fill();x.fillStyle="#FFE68A";x.beginPath();x.moveTo(0,-h*.6);x.quadraticCurveTo(h*.22,-h*.2,0,0);x.quadraticCurveTo(-h*.22,-h*.2,0,-h*.6);x.fill()};
+  var dr=[{x:.12,a:0},{x:.88,a:1}];bg(function(e,t){dr.forEach(function(d,i){var k=ez(e,.6+i*.2,.6);if(k<=0)return;var spin=Math.max(.05,1.2*Math.exp(-(e-.6)*.4));d.a+=spin*.2;x.save();x.translate(d.x*W,H-205);x.rotate(Math.sin(d.a*3)*.18*spin);x.globalAlpha=k;x.scale(Z.sc*.8,Z.sc*.8);
+    var c=Math.cos(d.a);x.fillStyle="#06B3E5";x.beginPath();x.moveTo(-18,-30);x.lineTo(18,-30);x.lineTo(18,4);x.lineTo(0,26);x.lineTo(-18,4);x.closePath();x.fill();x.fillStyle="#7FDDF7";x.beginPath();x.moveTo(-18*c,-30);x.lineTo(0,-30);x.lineTo(0,26);x.lineTo(-18*c,4);x.closePath();x.fill();
+    x.fillStyle="#C8902A";x.fillRect(-3,-44,6,14);x.fillStyle="#FFFFFF";x.font="800 18px "+getComputedStyle(document.body).fontFamily;x.textAlign="center";x.textBaseline="middle";x.fillText(["נ","ג","ה","ש"][Math.floor(d.a*2)%4],0,-10);x.restore()})})});
+add("סביבה","ענפי שקד",function(){zone();function br(sx,dir){var L=[];var p=[sx,-4],a=dir>0?.75:PI-.75;for(var i=0;i<6;i++){var l=rnd(28,40),np=[p[0]+Math.cos(a)*l,p[1]+Math.sin(a)*l];L.push([p[0],p[1],np[0],np[1],5-i*.6,i*.18]);if(i%2)L.push([np[0],np[1],np[0]+Math.cos(a-dir*.9)*22,np[1]+Math.sin(a-dir*.9)*22,2,i*.18+.2]);p=np;a+=rnd(-.3,.3)}return L}
+  var A=br(-4,1).concat(br(W+4,-1)),F=[];A.forEach(function(b){F.push([b[2],b[3],b[5]+.5,rnd(5,8)]);F.push([(b[0]+b[2])/2+rnd(-4,4),(b[1]+b[3])/2+rnd(-4,4),b[5]+.6,rnd(4,6)])});
+  bg(function(e,t){x.save();x.lineCap="round";A.forEach(function(b){var k=ez(e,b[5],.4);if(k<=0)return;x.strokeStyle="#6B4A33";x.lineWidth=b[4];x.beginPath();x.moveTo(b[0],b[1]);x.lineTo(b[0]+(b[2]-b[0])*k,b[1]+(b[3]-b[1])*k);x.stroke()});
+    F.forEach(function(f,i){var k=ez(e,f[2],.4);if(k<=0)return;var s=f[3]*k;x.save();x.translate(f[0],f[1]);x.rotate(i);for(var p=0;p<5;p++){var a=p*TAU/5;x.fillStyle=p%2?"#FFE3EE":"#FFFFFF";x.beginPath();x.ellipse(Math.cos(a)*s*.55,Math.sin(a)*s*.55,s*.55,s*.4,a,0,TAU);x.fill()}x.fillStyle="#F06292";x.beginPath();x.arc(0,0,s*.28,0,TAU);x.fill();x.restore()});x.restore();
+    if(e>1.5&&R()<.12)part({x:rnd(0,W),y:-10,vx:rnd(-.4,.4),vy:rnd(.6,1.1),size:rnd(3,4.5),col:pick(["#FFFFFF","#FFD3E2"]),shape:"petal",rot:rnd(0,TAU),vr:rnd(-.05,.05),vf:.08,sway:.02,max:12,fade:0})})});
+add("סביבה","שרשראות פורים",function(){zone();var M=[];for(var i=0;i<6;i++)M.push([i%2?rnd(W-50,W-20):rnd(20,50),rnd(H*.3,H*.7),R()*TAU,pick(["#7C5CFF","#FA1664","#06B3E5","#FFC94A"])]);
+  bg(function(e,t){var k=ez(e,.1,1.3);[[6,14,"#FA1664"],[16,18,"#7C5CFF"],[26,16,"#FFC94A"]].forEach(function(r){x.save();x.strokeStyle=r[2];x.lineWidth=4;x.lineCap="round";x.globalAlpha=k;x.beginPath();for(var c=0;c<=60;c++){var u=c/60;var px=-10+u*(W+20),py=r[0]+Math.sin(u*PI)*r[1]*k+Math.sin(u*40)*5;c?x.lineTo(px,py):x.moveTo(px,py)}x.stroke();x.restore()});
+    M.forEach(function(m,i){var km=ez(e,.8+i*.12,.6);if(km<=0)return;x.save();x.translate(m[0],m[1]+Math.sin(t*.0015+m[2])*6);x.rotate(Math.sin(t*.001+m[2])*.2);x.scale(.55*km,.55*km);x.fillStyle=m[3];x.beginPath();x.moveTo(-40,-8);x.bezierCurveTo(-36,-24,-12,-22,0,-12);x.bezierCurveTo(12,-22,36,-24,40,-8);x.bezierCurveTo(42,10,22,16,10,8);x.quadraticCurveTo(0,2,-10,8);x.bezierCurveTo(-22,16,-42,10,-40,-8);x.closePath();
+      x.moveTo(-8,-4);x.ellipse(-18,-4,10,6,.15,0,TAU);x.moveTo(28,-4);x.ellipse(18,-4,10,6,-.15,0,TAU);x.fill("evenodd");x.restore()})})});
+add("סביבה","גבעות אביב",function(){zone();var fl=[];for(var i=0;i<26;i++)fl.push([rnd(0,W),rnd(0,1),rnd(6,10),rnd(.6,2.4)]);
+  bg(function(e,t){var k=ez(e,.1,1.4);[["#8FCB6E",.8,.05],["#6DB356",.86,.08],["#4E9A3E",.92,.1]].forEach(function(h,i){var by=H*(1-(1-h[1])*k);x.fillStyle=h[0];x.beginPath();x.moveTo(0,H);for(var xx=0;xx<=W;xx+=8)x.lineTo(xx,by-Math.sin(xx*.012+i*2)*H*h[2]*.5);x.lineTo(W,H);x.fill()});
+    fl.forEach(function(f,i){var kf=ez(e,f[3],.4);if(kf<=0)return;var y=H*(.8+f[1]*.16)*1+0;x.save();x.translate(f[0],y);x.scale(kf,kf);x.rotate(Math.sin(t*.002+i)*.1);for(var p=0;p<6;p++){var a=p*TAU/6;x.fillStyle="#E52B3A";x.beginPath();x.ellipse(Math.cos(a)*f[2]*.6,Math.sin(a)*f[2]*.6,f[2]*.6,f[2]*.4,a,0,TAU);x.fill()}x.fillStyle="#1B1B2A";x.beginPath();x.arc(0,0,f[2]*.3,0,TAU);x.fill();x.restore()})})});
+add("סביבה","שרשרת דגלי ישראל",function(){zone();var quiet=window.__quiet;bg(function(e,t){var k=ez(e,.1,1.4);[[4,16]].forEach(function(r,ri){garland(r[0],r[1],9,k,function(i){var w=Math.sin(t*.006+i+ri)*1.5;x.fillStyle="#FFFFFF";x.strokeStyle="rgba(0,32,63,.15)";x.lineWidth=.6;x.beginPath();x.rect(-13,0,26,18);x.fill();x.stroke();
+    x.fillStyle="#1F5FBF";x.fillRect(-13,2,26,2.6);x.fillRect(-13,13.4,26,2.6);x.strokeStyle="#1F5FBF";x.lineWidth=1;x.beginPath();for(var tr=0;tr<2;tr++){var a0=tr?PI/2:-PI/2;for(var v=0;v<=3;v++){var a=a0+v*TAU/3,px=Math.cos(a)*4,py=9+Math.sin(a)*4;v?x.lineTo(px,py):x.moveTo(px,py)}}x.stroke()},.06)});
+    if(!quiet&&e>1.2&&R()<.03)burst(rnd(W*.15,W*.85),rnd(100,Z.top),55,2.8,["#1F5FBF","#FFFFFF","#06B3E5"],{g:.03,size:1.6,trail:6,max:1.6,glow:0})})});
+add("סביבה","לילה של מדורה",function(){zone();var st=[];for(var i=0;i<40;i++)st.push([rnd(0,W),rnd(0,H*.35),rnd(.6,1.6),R()*6]);
+  bg(function(e,t){var k=ez(e,.1,1.6);x.save();var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,"rgba(0,20,45,"+.75*k+")");g.addColorStop(.55,"rgba(0,20,45,"+.25*k+")");g.addColorStop(1,"rgba(255,120,40,"+.25*k+")");x.fillStyle=g;x.fillRect(0,0,W,H);
+    st.forEach(function(s){x.fillStyle="rgba(255,255,255,"+k*(.4+.6*Math.abs(Math.sin(t*.002+s[3])))+")";x.beginPath();x.arc(s[0],s[1],s[2],0,TAU);x.fill()});x.restore();
+    if(k>.5&&R()<.25)part({x:rnd(0,W),y:H+5,vx:rnd(-.4,.4),vy:-rnd(.8,1.8),size:rnd(1.4,2.6),col:pick(["#FFE68A","#FFB12E","#FF7A1F"]),shape:"sq",rot:rnd(0,TAU),vr:.1,sway:.04,max:7,fade:1})})});
+add("סביבה","שדה חיטה",function(){zone();var S2=[];for(var i=0;i<70;i++)S2.push([i/69*W+rnd(-3,3),rnd(.84,.93),rnd(.8,2),R()*6]);
+  bg(function(e,t){x.save();x.lineCap="round";S2.forEach(function(s,i){var k=ez(e,s[2]*.6,.6);if(k<=0)return;var bx=s[0],by=H,top=H*s[1]+(1-k)*H*.2,sw=Math.sin(t*.0015+s[3]+s[0]*.01)*10;x.strokeStyle="#C9A24A";x.lineWidth=1.6;x.beginPath();x.moveTo(bx,by);x.quadraticCurveTo(bx,(by+top)/2,bx+sw,top);x.stroke();
+    x.save();x.translate(bx+sw,top);x.rotate(sw*.02);for(var g=0;g<5;g++){x.fillStyle=g%2?"#E9B341":"#F2C14B";x.beginPath();x.ellipse(-2.4,-g*4,2.4,3.6,-.4,0,TAU);x.fill();x.beginPath();x.ellipse(2.4,-g*4,2.4,3.6,.4,0,TAU);x.fill()}x.restore()});x.restore();
+    if(R()<.06)part({x:rnd(0,W),y:H*.75,vx:rnd(.2,.8),vy:-rnd(.2,.6),size:rnd(1,2),col:"#F2C14B",shape:"sq",rot:rnd(0,TAU),vr:.05,sway:.02,max:5,fade:1})})});
+add("סביבה","קישוטי זהב",function(){zone();bg(function(e,t){var k=ez(e,.1,1.2);[["#E9B341",40],["#FFFFFF",70],["#C8902A",30],["#FFE7A3",90],["#E9B341",50],["#FFFFFF",36],["#C8902A",80]].forEach(function(d,i){var px=(i+.5)/7*W,len=d[1]*k;if(k<=0)return;x.save();x.translate(px,0);x.rotate(Math.sin(t*.0016+i)*.06);x.strokeStyle=isDark()?"rgba(255,255,255,.3)":"rgba(0,32,63,.3)";x.lineWidth=1;x.beginPath();x.moveTo(0,0);x.lineTo(0,len);x.stroke();
+    x.translate(0,len+10);x.rotate(t*.0008*(i%2?1:-1));x.fillStyle=d[0];if(i%2){shapes.star5({},10)}else{x.beginPath();x.arc(0,0,8,0,TAU);x.fill();x.fillStyle="rgba(255,255,255,.5)";x.beginPath();x.arc(-3,-3,2.4,0,TAU);x.fill()}x.restore()});
+    if(R()<.3)part({x:rnd(0,W),y:-6,vy:rnd(.8,1.6),size:rnd(1,2),col:pick(["#FFD45A","#FFE7A3","#FFFFFF"]),shape:"sq",rot:rnd(0,TAU),vr:.1,sway:.01,max:9,fade:0,twk:8})})});
+
+/* ===== round 2 fixes ===== */
+/* ראש השנה: דבש אמיתי שזורם כל הזמן */
+add("סביבה","דבש זורם",function(){zone();var DR=[];for(var i=0;i<16;i++){var w=rnd(14,26);DR.push({x:(i+.5)/16+rnd(-.015,.015),w:w,L:rnd(10,30),max:rnd(60,150),sp:rnd(.12,.3)})}
+  function honeyGrad(y0,y1){var g=x.createLinearGradient(0,y0,0,y1);g.addColorStop(0,"#E58A0F");g.addColorStop(.5,"#F5A623");g.addColorStop(1,"#FFC24A");return g}
+  bg(function(e,t){var k=ez(e,0,1.2);x.save();x.globalAlpha=k;
+    // thick band with a soft wavy edge
+    x.fillStyle=honeyGrad(0,30);x.beginPath();x.moveTo(0,0);x.lineTo(W,0);for(var xx=W;xx>=0;xx-=6)x.lineTo(xx,18+Math.sin(xx*.04+t*.0008)*3);x.closePath();x.fill();
+    DR.forEach(function(d){d.L+=d.sp*(1+.6*Math.sin(t*.001+d.x*20));if(d.L>d.max){part({x:d.x*W,y:18+d.L,vy:1,g:.22,size:d.w*.32,col:"#F5A623",shape:"hdrop",max:4,fade:0});d.L=d.max*.45;d.max=rnd(70,160)}
+      var cx=d.x*W,w=d.w,L=d.L*k,r=w*.42,neck=w*.26+Math.max(0,1-L/100)*w*.12;x.fillStyle=honeyGrad(10,20+L+r);x.beginPath();x.moveTo(cx-w*.9,16);
+      x.bezierCurveTo(cx-w*.45,18,cx-neck,24,cx-neck,20+L*.6);x.bezierCurveTo(cx-neck,20+L*.85,cx-r,20+L-r*.4,cx-r,20+L);x.arc(cx,20+L,r,PI,0,true);x.bezierCurveTo(cx+r,20+L-r*.4,cx+neck,20+L*.85,cx+neck,20+L*.6);x.bezierCurveTo(cx+neck,24,cx+w*.45,18,cx+w*.9,16);x.closePath();x.fill();
+      x.fillStyle="rgba(255,255,255,.55)";x.beginPath();x.ellipse(cx-r*.38,20+L-r*.15,r*.18,r*.34,-.2,0,TAU);x.fill();x.strokeStyle="rgba(255,240,200,.45)";x.lineWidth=1.4;x.beginPath();x.moveTo(cx-neck*.5,22);x.lineTo(cx-neck*.5,16+L*.7);x.stroke()});
+    x.fillStyle="rgba(255,255,255,.4)";x.fillRect(0,4,W,2);x.restore()})});
+shapes.hdrop=function(p,s){var g=x.createLinearGradient(0,-s*2,0,s);g.addColorStop(0,"#F5A623");g.addColorStop(1,"#FFC24A");x.fillStyle=g;x.beginPath();x.moveTo(0,-s*2.2);x.quadraticCurveTo(s,-s*.2,s,s*.2);x.arc(0,s*.2,s,0,PI);x.quadraticCurveTo(-s,-s*.2,0,-s*2.2);x.fill();x.fillStyle="rgba(255,255,255,.55)";x.beginPath();x.ellipse(-s*.35,0,s*.18,s*.35,0,0,TAU);x.fill()};
+
+/* סוכות: אנחנו בתוך הסוכה */
+add("סביבה","בתוך הסוכה",function(){zone();var fr=[];for(var l=0;l<2;l++)for(var i=0;i<26;i++)fr.push([i/25*W+rnd(-10,10),l*16+rnd(0,8),rnd(-.5,.5),rnd(40,60),l]);
+  var spots=[];for(var i=0;i<14;i++)spots.push([rnd(0,W),rnd(70,H*.85),rnd(14,36),R()*6]);
+  var DEC=[["ball","#FFC94A",22],["chain","#FA1664",8],["pom","",30],["ball","#06B3E5",14],["star","#E9B341",26],["chain","#3CDCC8",10],["ball","#7C5CFF",20]];
+  bg(function(e,t){var k=ez(e,0,1.2);light("255,220,140",.28*k,H*.2);
+    // bamboo schach mat: slats across the top, tied with cords
+    var kb=ez(e,0,.7);x.save();x.globalAlpha=kb;for(var b=0;b<Math.ceil(W/9)+1;b++){var bx=b*9-((1-kb)*30),bh=46+((b*37)%11);var g=x.createLinearGradient(bx,0,bx+8,0);g.addColorStop(0,"#B48A4A");g.addColorStop(.5,"#E2C483");g.addColorStop(1,"#A57B3E");x.fillStyle=g;x.fillRect(bx,0,8,bh);
+      x.fillStyle="rgba(120,80,30,.45)";x.fillRect(bx,bh*.35,8,1.6);x.fillRect(bx,bh*.75,8,1.6)}
+    x.strokeStyle="#6B4A2B";x.lineWidth=2;[16,34].forEach(function(cy){x.beginPath();x.moveTo(0,cy);x.lineTo(W,cy);x.stroke()});x.restore();
+    // schach overhead, two layers of palm fronds
+    fr.forEach(function(f,i){var kk=ez(e,.1+f[1]*.01+(i%26)*.012,.6);if(kk<=0)return;x.save();x.translate(f[0],f[1]-(1-kk)*40);x.rotate(f[2]+Math.sin(t*.0012+i)*.04);x.strokeStyle=f[4]?"#5BAA47":"#2F6E2E";x.lineWidth=f[4]?3:4;x.lineCap="round";x.beginPath();x.moveTo(-f[3]/2,0);x.lineTo(f[3]/2,0);
+      for(var j=-5;j<=5;j++){x.moveTo(j*f[3]/12,0);x.lineTo(j*f[3]/12-7,-10);x.moveTo(j*f[3]/12,0);x.lineTo(j*f[3]/12-7,10)}x.stroke();x.restore()});
+    // string lights
+    var kl=ez(e,1.1,.6);garland(36,18,13,kl,function(i){var on=.55+.45*Math.sin(t*.006+i*1.9);x.fillStyle="rgba(255,214,120,"+on+")";x.beginPath();x.arc(0,3,3.4,0,TAU);x.fill();x.globalCompositeOperation=S.add;x.fillStyle="rgba(255,200,90,"+on*.3+")";x.beginPath();x.arc(0,3,11,0,TAU);x.fill()});
+    // hanging decorations at different depths
+    var kd=ez(e,.8,.7);DEC.forEach(function(d,i){if(kd<=0)return;var px=(i+.5)/DEC.length*(W-60)+30,len=d[2]*kd;x.save();x.translate(px,20);x.rotate(Math.sin(t*.0018+i*1.3)*.09);x.strokeStyle="rgba(0,32,63,.35)";x.lineWidth=1;x.beginPath();x.moveTo(0,0);x.lineTo(0,len);x.stroke();x.translate(0,len);
+      if(d[0]==="ball"){x.fillStyle=d[1];x.beginPath();x.arc(0,9,9,0,TAU);x.fill();x.fillStyle="rgba(255,255,255,.55)";x.beginPath();x.arc(-3,6,2.6,0,TAU);x.fill();x.fillStyle="#C8902A";x.fillRect(-2.5,-1,5,3)}
+      else if(d[0]==="chain"){for(var c=0;c<5;c++){x.strokeStyle=c%2?d[1]:"#FFC94A";x.lineWidth=2.4;x.beginPath();x.ellipse(0,c*9+5,c%2?2.2:5,5.4,0,0,TAU);x.stroke()}}
+      else if(d[0]==="pom"){x.fillStyle="#C21F3A";x.beginPath();x.arc(0,11,10,0,TAU);x.fill();x.fillStyle="#E8455F";x.beginPath();x.arc(-3,8,4,0,TAU);x.fill();x.fillStyle="#9C1530";x.beginPath();x.moveTo(-4,2);x.lineTo(-2,-3);x.lineTo(0,1);x.lineTo(2,-3);x.lineTo(4,2);x.fill()}
+      else{x.translate(0,10);x.fillStyle=d[1];shapes.star5({},10)}x.restore()})})});
+
+/* שמחת תורה: דגלי שמחת תורה אמיתיים, לבנים עם כחול, ספר תורה ותפוח על המקל */
+function stFlag(w,h,wave,t,ph){for(var s=0;s<12;s++){var u=s/12,wy=Math.sin(t*.006+u*5+ph)*wave*u;x.fillStyle="#FFFFFF";x.fillRect(u*w,wy,w/12+.6,h);x.fillStyle="#1F5FBF";x.fillRect(u*w,wy,w/12+.6,h*.08);x.fillRect(u*w,wy+h*.92,w/12+.6,h*.08)}
+  var wy=Math.sin(t*.006+2.5+ph)*wave*.5,cx=w*.5,cy=h*.5+wy;x.fillStyle="#F3E6C8";x.fillRect(cx-w*.17,cy-h*.26,w*.34,h*.52);x.fillStyle="#1F5FBF";x.fillRect(cx-w*.22,cy-h*.32,w*.05,h*.64);x.fillRect(cx+w*.17,cy-h*.32,w*.05,h*.64);
+  x.strokeStyle="rgba(31,95,191,.6)";x.lineWidth=1;for(var r=0;r<4;r++){x.beginPath();x.moveTo(cx-w*.13,cy-h*.16+r*h*.1);x.lineTo(cx+w*.13,cy-h*.16+r*h*.1);x.stroke()}}
+add("סביבה","דגלי שמחת תורה אמיתיים",function(){zone();bg(function(e,t){var k=ez(e,.1,1.4);garland(4,16,9,k,function(i){x.translate(-12,0);stFlag(24,17,1.5,t,i)},.06);
+  if(R()<.03)part({x:rnd(0,W),y:rnd(90,H*.8),size:rnd(2,4),col:pick(["#FFD45A","#FFFFFF","#7FB2F0"]),shape:"star4",max:1.6,fade:1,twk:6})})});
+add("חגים","ספר תורה ודגלי חג",function(){zone();bg(function(e,t){light("255,220,150",.3*ez(e,1,1),Z.base-70*Z.sc);local(function(){groundShadow(100);
+  [[-72,-.2,0],[72,.2,1.6]].forEach(function(f){var kf=ez(e,.9,.6);if(kf<=0)return;x.save();x.translate(f[0],-18);x.rotate(f[1]*kf);x.globalAlpha=kf;x.strokeStyle="#9C6232";x.lineWidth=3.5;x.lineCap="round";x.beginPath();x.moveTo(0,0);x.lineTo(0,-124);x.stroke();
+    x.fillStyle="#E0303A";x.beginPath();x.arc(0,-132,8,0,TAU);x.fill();x.fillStyle="rgba(255,255,255,.45)";x.beginPath();x.arc(-3,-135,2.4,0,TAU);x.fill();x.fillStyle="#3DAA4E";x.beginPath();x.ellipse(4,-142,5,2.4,-.6,0,TAU);x.fill();
+    x.save();x.translate(f[1]<0?-56:0,-120);if(f[1]<0){x.translate(56,0);x.scale(-1,1)}stFlag(56,40,4,t,f[2]);x.restore();x.restore()});
+  var ko=ez(e,.2,1.1),half=8+50*ko;x.fillStyle="#F3E6C8";x.fillRect(-half,-104,half*2,92);x.fillStyle="rgba(150,110,60,.18)";x.fillRect(-half,-104,half*2,5);x.fillRect(-half,-17,half*2,5);
+  x.save();x.globalAlpha=ko;x.strokeStyle="rgba(60,40,20,.55)";x.lineWidth=1.3;for(var col=0;col<2;col++)for(var r=0;r<10;r++){var cx0=-half+10+col*(half-6),w=(half-16)*(.7+.3*((r*7+col)%3)/2);if(w<=2)continue;x.beginPath();x.moveTo(cx0,-92+r*7.5);x.lineTo(cx0+w,-92+r*7.5);x.stroke()}x.restore();
+  [-half,half].forEach(function(rx){x.fillStyle="#7A4A24";x.beginPath();x.roundRect(rx-4,-128,8,124,3);x.fill();x.fillStyle="#E8C27A";x.beginPath();x.roundRect(rx-10,-110,20,8,3);x.fill();x.beginPath();x.roundRect(rx-10,-16,20,8,3);x.fill();x.fillStyle="#C8902A";x.beginPath();x.arc(rx,-134,6,0,TAU);x.fill();x.beginPath();x.arc(rx,2,5,0,TAU);x.fill()})})})});
+
+/* ט״ו בשבט: בלי ענפים בצדדים, רק פריחה באוויר */
+add("סביבה","פריחה באוויר",function(){zone();for(var i=0;i<26;i++)part({x:rnd(0,W),y:rnd(-H,H*.6),vx:rnd(-.3,.3),vy:rnd(.5,1),size:rnd(3,5),col:pick(["#FFFFFF","#FFD3E2","#FFE3EE"]),shape:"petal",rot:rnd(0,TAU),vr:rnd(-.05,.05),flip:rnd(0,TAU),vf:rnd(.05,.1),sway:.02,max:20,fade:0,kill:0,upd:function(q){if(q.y>H+10){q.y=-10;q.x=rnd(0,W)}}});
+  bg(function(e,t){light("255,200,220",.22*ez(e,.3,1.4),H*.3)})});
+
+/* פורים: הרבה סוגי מסכות */
+function mask(type,c,t){x.lineCap="round";x.lineJoin="round";
+  if(type==="eye"||type==="cat"){x.fillStyle=c;x.beginPath();x.moveTo(-40,-8);x.bezierCurveTo(-36,-24,-12,-22,0,-12);x.bezierCurveTo(12,-22,36,-24,40,-8);x.bezierCurveTo(42,10,22,16,10,8);x.quadraticCurveTo(0,2,-10,8);x.bezierCurveTo(-22,16,-42,10,-40,-8);x.closePath();x.moveTo(-8,-4);x.ellipse(-18,-4,10,6,.15,0,TAU);x.moveTo(28,-4);x.ellipse(18,-4,10,6,-.15,0,TAU);x.fill("evenodd");
+    if(type==="cat"){x.beginPath();x.moveTo(-34,-14);x.lineTo(-30,-36);x.lineTo(-16,-20);x.moveTo(34,-14);x.lineTo(30,-36);x.lineTo(16,-20);x.fill()}else{x.fillStyle="#FFC94A";x.beginPath();x.moveTo(-38,-12);x.quadraticCurveTo(-56,-40,-44,-60);x.quadraticCurveTo(-40,-36,-32,-18);x.fill()}
+    x.strokeStyle="#FFC94A";x.lineWidth=2;x.beginPath();x.moveTo(-40,-8);x.bezierCurveTo(-36,-24,-12,-22,0,-12);x.bezierCurveTo(12,-22,36,-24,40,-8);x.stroke()}
+  else if(type==="venice"){x.fillStyle="#FFFFFF";x.beginPath();x.moveTo(0,-44);x.bezierCurveTo(30,-44,36,-10,30,14);x.bezierCurveTo(24,40,8,48,0,48);x.bezierCurveTo(-8,48,-24,40,-30,14);x.bezierCurveTo(-36,-10,-30,-44,0,-44);x.closePath();x.moveTo(-6,-8);x.ellipse(-14,-8,8,5,.2,0,TAU);x.moveTo(22,-8);x.ellipse(14,-8,8,5,-.2,0,TAU);x.fill("evenodd");
+    x.strokeStyle="#E9B341";x.lineWidth=2.4;x.beginPath();x.ellipse(-14,-8,10,7,.2,0,TAU);x.ellipse(14,-8,10,7,-.2,0,TAU);x.stroke();x.fillStyle="#C21F3A";x.beginPath();x.ellipse(0,30,8,3.5,0,0,TAU);x.fill();x.fillStyle="#E9B341";x.beginPath();x.arc(-22,-30,3,0,TAU);x.arc(22,-30,3,0,TAU);x.fill()}
+  else if(type==="clown"){x.fillStyle="#FFF4EC";x.beginPath();x.arc(0,0,30,0,TAU);x.fill();x.fillStyle="#FA1664";x.beginPath();x.arc(0,4,8,0,TAU);x.fill();x.fillStyle="#00203F";x.beginPath();x.arc(-11,-8,3.2,0,TAU);x.arc(11,-8,3.2,0,TAU);x.fill();
+    x.strokeStyle="#FA1664";x.lineWidth=3;x.beginPath();x.arc(0,10,13,.25*PI,.75*PI);x.stroke();x.fillStyle="#06B3E5";x.beginPath();x.moveTo(-18,-24);x.lineTo(0,-62);x.lineTo(18,-24);x.closePath();x.fill();x.fillStyle="#FFC94A";x.beginPath();x.arc(0,-62,5,0,TAU);x.fill();x.beginPath();x.arc(-6,-40,3,0,TAU);x.arc(6,-32,3,0,TAU);x.fill()}
+  else if(type==="crown"){x.fillStyle="#F2C14B";x.beginPath();x.moveTo(-30,14);x.lineTo(-34,-18);x.lineTo(-17,-2);x.lineTo(0,-26);x.lineTo(17,-2);x.lineTo(34,-18);x.lineTo(30,14);x.closePath();x.fill();x.fillStyle="#E0A92E";x.fillRect(-30,6,60,8);
+    [["#C21F3A",-18],["#06B3E5",0],["#3DAA4E",18]].forEach(function(g){x.fillStyle=g[0];x.beginPath();x.arc(g[1],10,3.4,0,TAU);x.fill()});x.fillStyle="rgba(255,255,255,.55)";x.fillRect(-26,-2,4,10)}
+  else if(type==="stache"){x.strokeStyle="#00203F";x.lineWidth=3;x.beginPath();x.arc(-14,-8,10,0,TAU);x.stroke();x.beginPath();x.arc(14,-8,10,0,TAU);x.stroke();x.beginPath();x.moveTo(-4,-9);x.quadraticCurveTo(0,-13,4,-9);x.stroke();
+    x.fillStyle="#4A2A1A";x.beginPath();x.moveTo(0,10);x.bezierCurveTo(-8,4,-22,6,-30,16);x.bezierCurveTo(-20,14,-12,20,0,16);x.bezierCurveTo(12,20,20,14,30,16);x.bezierCurveTo(22,6,8,4,0,10);x.fill();x.fillStyle="#F2B08A";x.beginPath();x.ellipse(0,6,5,6,0,0,TAU);x.fill()}
+  else if(type==="pirate"){x.strokeStyle="#00203F";x.lineWidth=2;x.beginPath();x.moveTo(-36,-14);x.quadraticCurveTo(0,-26,36,-14);x.stroke();x.fillStyle="#00203F";x.beginPath();x.ellipse(-12,-4,14,11,.1,0,TAU);x.fill();x.fillStyle="#FFFFFF";x.beginPath();x.arc(-12,-6,3,0,TAU);x.fill();x.fillRect(-15,-1,6,2)}}
+add("סביבה","מסכות פורים",function(){zone();var T=["eye","venice","clown","crown","stache","cat","pirate","eye"],C=["#7C5CFF","#FFF","#FFF","#F2C14B","#000","#FA1664","#000","#06B3E5"];var M=[];
+  T.forEach(function(ty,i){var left=i%2===0;M.push({ty:ty,c:C[i],x:left?rnd(28,58):rnd(W-58,W-28),y:H*(.18+(Math.floor(i/2))*.17)+rnd(-10,10),ph:R()*6,st:.3+i*.12})});
+  bg(function(e,t){var k=ez(e,.1,1.2);[[6,14,"#FA1664"],[16,18,"#7C5CFF"],[26,16,"#FFC94A"]].forEach(function(r){x.save();x.strokeStyle=r[2];x.lineWidth=4;x.lineCap="round";x.globalAlpha=k;x.beginPath();for(var c=0;c<=60;c++){var u=c/60,px=-10+u*(W+20),py=r[0]+Math.sin(u*PI)*r[1]*k+Math.sin(u*40)*5;c?x.lineTo(px,py):x.moveTo(px,py)}x.stroke();x.restore()});
+    M.forEach(function(m,i){var km=ez(e,m.st,.6);if(km<=0)return;x.save();x.translate(m.x,m.y+Math.sin(t*.0015+m.ph)*6);x.rotate(Math.sin(t*.001+m.ph)*.18);x.scale(.5*km,.5*km);mask(m.ty,m.c,t);x.restore()})})});
+
+/* יום הולדת: העוגה בתוך האזור, לא על השעה */
+add("ימים מיוחדים","עוגה עם נרות",function(){zone();var fired=0;bg(function(e,t){light("255,190,120",.3*ez(e,1,1),Z.base-60*Z.sc);local(function(){var k=ez(e,0,.8),w=150;x.save();x.globalAlpha=k;x.translate(0,(1-k)*20);groundShadow(95);
+  x.fillStyle="#E6E9EC";x.beginPath();x.ellipse(0,-2,w/2+18,9,0,0,TAU);x.fill();x.fillStyle="#FFC2D6";x.fillRect(-w/2,-62,w,58);x.fillStyle="#FA1664";x.fillRect(-w/2,-38,w,7);x.fillStyle="#FFE3EC";x.beginPath();x.ellipse(0,-4,w/2,8,0,0,PI);x.fill();
+  x.fillStyle="#FFFFFF";x.beginPath();x.ellipse(0,-62,w/2,11,0,0,TAU);x.fill();for(var d=0;d<8;d++){var dx=-w/2+8+d*(w-16)/7;x.beginPath();x.ellipse(dx,-55,6,9,0,0,TAU);x.fill()}
+  for(var i=0;i<5;i++){var c=-w*.32+i*w*.16,top=-94;x.fillStyle=["#06B3E5","#FFC94A","#7C5CFF","#3CDCC8","#FA1664"][i];x.fillRect(c-3,top,6,30);x.fillStyle="#FFF";for(var s=0;s<3;s++)x.fillRect(c-3,top+4+s*9,6,3);
+    var lit=e-1-i*.18;if(lit>0)flameAt(c,top-2,flick(t,i)*Math.min(1,lit/.3),t,i)}x.restore()});
+  if(e>2.2&&!fired){fired=1;cannon(-10,H*.75,-PI*.34,18,70,.55,PAL.K);cannon(W+10,H*.75,-PI*.66,18,70,.55,PAL.K)}})});
+
+/* יום אחרון לפני חופשה: מטוס אמיתי ממריא, ומזוודה */
+add("ימים מיוחדים","מטוס ממריא",function(){zone();var trail=[],cl=[[.15,.25,.9],[.7,.12,.7],[.85,.4,1.1]];
+  bg(function(e,t){light("120,200,255",.22*ez(e,.3,1.2),H*.3);
+    cl.forEach(function(c,i){var cx=((c[0]*W+t*.01*(i+1))%(W+160))-80,cy=c[1]*H;x.save();x.globalAlpha=(isDark()?.25:.85)*ez(e,0,1);x.fillStyle="#FFFFFF";x.translate(cx,cy);x.scale(c[2],c[2]);x.beginPath();x.arc(0,0,22,0,TAU);x.arc(26,-10,26,0,TAU);x.arc(52,0,20,0,TAU);x.arc(26,8,22,0,TAU);x.fill();x.restore()});
+    var p=Math.min(1,e/4.2),ep=p*p*(3-2*p),px=-60+ep*(W+140),py=Z.base-20*Z.sc-ep*(Z.base-Z.top+80)-Math.sin(ep*PI)*20,ang=-.28-.12*ep;
+    if(p<1)trail.push([px-Math.cos(ang)*46,py-Math.sin(ang)*46]);if(trail.length>90)trail.shift();
+    x.save();x.lineCap="round";for(var i=1;i<trail.length;i++){x.strokeStyle="rgba(255,255,255,"+(i/trail.length)*.8+")";x.lineWidth=4*(i/trail.length);x.beginPath();x.moveTo(trail[i-1][0],trail[i-1][1]+3);x.lineTo(trail[i][0],trail[i][1]+3);x.moveTo(trail[i-1][0],trail[i-1][1]-3);x.lineTo(trail[i][0],trail[i][1]-3);x.stroke()}x.restore();
+    if(p<1){x.save();x.translate(px,py);x.rotate(ang);x.scale(Z.sc*.9,Z.sc*.9);
+      x.fillStyle="#06B3E5";x.beginPath();x.moveTo(-44,-4);x.lineTo(-58,-30);x.lineTo(-48,-30);x.lineTo(-30,-6);x.closePath();x.fill();
+      x.fillStyle="#FFFFFF";x.beginPath();x.moveTo(-50,-6);x.quadraticCurveTo(-30,-12,30,-10);x.quadraticCurveTo(54,-8,58,0);x.quadraticCurveTo(54,8,30,8);x.lineTo(-44,6);x.quadraticCurveTo(-54,4,-50,-6);x.fill();
+      x.fillStyle="#00203F";x.fillRect(-40,1,74,2.5);for(var w=0;w<9;w++){x.fillStyle="#7FB2F0";x.beginPath();x.arc(-28+w*7,-4,1.7,0,TAU);x.fill()}x.fillStyle="#00203F";x.beginPath();x.moveTo(48,-6);x.quadraticCurveTo(54,-5,56,-1);x.lineTo(48,-1);x.closePath();x.fill();
+      x.fillStyle="#D9DEE5";x.beginPath();x.moveTo(-4,2);x.lineTo(14,2);x.lineTo(-14,26);x.lineTo(-24,26);x.closePath();x.fill();x.fillStyle="#AEB8C4";x.beginPath();x.roundRect(0,6,18,7,3);x.fill();x.restore()}
+    local(function(){var k=ez(e,.2,.7);x.save();x.globalAlpha=k;x.translate(0,(1-k)*16);groundShadow(50);x.fillStyle="#FA1664";x.beginPath();x.roundRect(-30,-80,60,78,10);x.fill();x.fillStyle="#D80F55";x.fillRect(-30,-48,60,6);
+      x.strokeStyle="#00203F";x.lineWidth=4;x.beginPath();x.moveTo(-12,-80);x.lineTo(-12,-94);x.lineTo(12,-94);x.lineTo(12,-80);x.stroke();x.fillStyle="#00203F";x.beginPath();x.arc(-18,0,4,0,TAU);x.arc(18,0,4,0,TAU);x.fill();
+      x.fillStyle="#FFFFFF";x.beginPath();x.arc(-12,-64,8,0,TAU);x.fill();x.fillStyle="#06B3E5";x.beginPath();x.roundRect(4,-30,18,12,3);x.fill();x.fillStyle="#FFC94A";x.beginPath();x.arc(14,-66,6,0,TAU);x.fill();x.restore()})})});
+
+/* הבוקר שאחרי האוסקר: פסלון פרס זהוב משלנו, שטיח אדום וזרקורים */
+add("ימים מיוחדים","פרס זהוב",function(){zone();bg(function(e,t){x.save();x.globalCompositeOperation=S.add;[[W*.08,1],[W*.92,-1]].forEach(function(b){var a=-PI/2+Math.sin(t*.0011)*.35*b[1];var g=x.createLinearGradient(b[0],H,b[0]+Math.cos(a)*H,H+Math.sin(a)*H);g.addColorStop(0,"rgba(255,240,200,.45)");g.addColorStop(1,"rgba(255,240,200,0)");
+    x.fillStyle=g;x.globalAlpha=ez(e,.3,1);x.beginPath();x.moveTo(b[0],H+10);x.lineTo(b[0]+Math.cos(a-.08)*H*1.4,H+Math.sin(a-.08)*H*1.4);x.lineTo(b[0]+Math.cos(a+.08)*H*1.4,H+Math.sin(a+.08)*H*1.4);x.closePath();x.fill()});x.restore();
+    light("255,210,120",.3*ez(e,1,1),Z.base-80*Z.sc);
+    var kc=ez(e,0,.8);x.save();x.globalAlpha=.9*kc;x.fillStyle="#C21F3A";x.beginPath();x.moveTo(Z.cx-22*Z.sc*kc,Z.base-46*Z.sc);x.lineTo(Z.cx+22*Z.sc*kc,Z.base-46*Z.sc);x.lineTo(Z.cx+92*Z.sc*kc,Z.base+8);x.lineTo(Z.cx-92*Z.sc*kc,Z.base+8);x.closePath();x.fill();x.fillStyle="#E9B341";x.fillRect(Z.cx-92*Z.sc*kc,Z.base+6,184*Z.sc*kc,2);x.restore();
+    local(function(){var k=ez(e,.4,.8);x.save();x.globalAlpha=k;x.translate(0,(1-k)*16);x.fillStyle="#1B1B22";x.beginPath();x.roundRect(-26,-30,52,30,4);x.fill();x.fillStyle="#2A2A33";x.fillRect(-26,-30,52,6);x.fillStyle="#E9B341";x.beginPath();x.roundRect(-16,-18,32,9,2);x.fill();
+      var g=x.createLinearGradient(-30,-150,30,-30);g.addColorStop(0,"#FFF1B0");g.addColorStop(.45,"#F2C14B");g.addColorStop(1,"#B98420");x.fillStyle=g;
+      x.beginPath();x.moveTo(-6,-30);x.lineTo(6,-30);x.lineTo(4,-70);x.lineTo(-4,-70);x.closePath();x.fill();x.beginPath();x.ellipse(0,-72,12,4,0,0,TAU);x.fill();
+      x.save();x.translate(0,-104);x.rotate(Math.sin(t*.001)*.05);x.beginPath();for(var i=0;i<10;i++){var r=i%2?14:32,a=i*PI/5-PI/2;x.lineTo(Math.cos(a)*r,Math.sin(a)*r)}x.closePath();x.fill();x.strokeStyle="rgba(150,100,20,.5)";x.lineWidth=1.5;x.stroke();
+      var sh=((t*.0006)%2)-.5;x.save();x.clip();x.fillStyle="rgba(255,255,255,.55)";x.beginPath();x.moveTo(-40+sh*90,-40);x.lineTo(-28+sh*90,-40);x.lineTo(-52+sh*90,40);x.lineTo(-64+sh*90,40);x.fill();x.restore();x.restore();x.restore()});
+    if(e>1&&R()<.06)part({x:rnd(20,W-20),y:rnd(Z.base,H*.85),size:24,col:"#FFFFFF",max:.3,fade:1,glow:4,shape:"star4"})})});
+
+/* שרב: השמש בתוך האזור, בלי מסך שמכסה את הטקסט */
+add("טבע","שמש של שרב",function(){zone();bg(function(e,t){var k=ez(e,0,1.4);light("255,150,60",.35*k,Z.base-70*Z.sc);local(function(){var r=40,cy=-80;x.save();x.globalAlpha=k;
+  x.save();x.translate(0,cy);x.rotate(t*.0002);x.strokeStyle="#FFB12E";x.lineWidth=5;x.lineCap="round";for(var i=0;i<16;i++){var a=i*TAU/16,l=r*(1.45+.14*Math.sin(t*.003+i));x.beginPath();x.moveTo(Math.cos(a)*r*1.2,Math.sin(a)*r*1.2);x.lineTo(Math.cos(a)*l,Math.sin(a)*l);x.stroke()}x.restore();
+  var g=x.createRadialGradient(-10,cy-10,4,0,cy,r);g.addColorStop(0,"#FFF3B8");g.addColorStop(.6,"#FFC93C");g.addColorStop(1,"#FF9A1E");x.fillStyle=g;x.beginPath();x.arc(0,cy,r,0,TAU);x.fill();
+  x.strokeStyle="rgba(255,140,60,.5)";x.lineWidth=2.4;for(var j=0;j<3;j++){x.beginPath();for(var xx=-90;xx<=90;xx+=4)x.lineTo(xx,-8-j*9+Math.sin(xx*.08+t*.006+j)*3);x.stroke()}
+  x.translate(92,-6);x.fillStyle="#E8B26A";x.beginPath();x.moveTo(-10,-30);x.lineTo(10,-30);x.lineTo(0,0);x.closePath();x.fill();x.fillStyle="#FFC2D6";x.beginPath();x.arc(0,-36,13,PI,0);x.lineTo(13,-30);x.quadraticCurveTo(6,-26,4,-18+Math.sin(t*.002)*2);x.quadraticCurveTo(2,-26,-13,-30);x.closePath();x.fill();
+  var dp=((t*.0005)%1);x.beginPath();x.arc(4,-18+dp*18,2.2,0,TAU);x.fill();x.restore()})})});
+
+/* יום העצמאות: פטישים מתנפחים מוארים */
+add("סביבה","פטישים מתנפחים",function(){zone();bg(function(e,t){[[-1,.3],[1,.6]].forEach(function(h){var k=ez(e,h[1],.6);if(k<=0)return;var sw=Math.sin(t*.004+h[1]*3)*.35;x.save();x.translate(Z.cx+h[0]*(W/2-44),Z.base+110*Z.sc);x.rotate(h[0]*.45+sw*h[0]);x.scale(Z.sc*.7*k,Z.sc*.7*k);
+  x.save();x.globalCompositeOperation=S.add;var gl=x.createRadialGradient(0,-60,0,0,-60,70);gl.addColorStop(0,"rgba(120,200,255,.35)");gl.addColorStop(1,"rgba(120,200,255,0)");x.fillStyle=gl;x.beginPath();x.arc(0,-60,70,0,TAU);x.fill();x.restore();
+  x.fillStyle="#FFFFFF";x.beginPath();x.roundRect(-5,-56,10,56,5);x.fill();x.fillStyle="#1F5FBF";for(var s=0;s<3;s++)x.fillRect(-5,-46+s*16,10,5);
+  var g=x.createLinearGradient(0,-80,0,-40);g.addColorStop(0,"#5FA8FF");g.addColorStop(1,"#1F5FBF");x.fillStyle=g;x.beginPath();x.roundRect(-34,-82,68,32,16);x.fill();x.fillStyle="#FFFFFF";x.fillRect(-14,-82,7,32);x.fillRect(7,-82,7,32);
+  x.fillStyle="rgba(255,255,255,.6)";x.beginPath();x.roundRect(-26,-78,24,6,3);x.fill();x.restore()})})});
+
+/* ===== round 3 fixes ===== */
+/* דגל ישראל מתנופף */
+function ilFlag(w,h,wave,t,ph){for(var s=0;s<14;s++){var u=s/14,wy=Math.sin(t*.006+u*5+ph)*wave*u;x.fillStyle="#FFFFFF";x.fillRect(u*w,wy,w/14+.6,h);x.fillStyle="#1F5FBF";x.fillRect(u*w,wy+h*.1,w/14+.6,h*.13);x.fillRect(u*w,wy+h*.77,w/14+.6,h*.13)}
+  var wy=Math.sin(t*.006+2.5+ph)*wave*.5,cx=w*.5,cy=h*.5+wy,r=h*.19;x.strokeStyle="#1F5FBF";x.lineWidth=Math.max(1,h*.045);x.lineJoin="round";x.beginPath();
+  for(var tr=0;tr<2;tr++){var a0=tr?PI/2:-PI/2;for(var v=0;v<=3;v++){var a=a0+v*TAU/3,px=cx+Math.cos(a)*r,py=cy+Math.sin(a)*r;v?x.lineTo(px,py):x.moveTo(px,py)}}x.stroke()}
+add("חגים","ספר תורה ודגלי ישראל",function(){zone();bg(function(e,t){light("255,220,150",.3*ez(e,1,1),Z.base-70*Z.sc);local(function(){groundShadow(100);
+  [[-72,-.2,0],[72,.2,1.6]].forEach(function(f){var kf=ez(e,.9,.6);if(kf<=0)return;x.save();x.translate(f[0],-18);x.rotate(f[1]*kf);x.globalAlpha=kf;x.strokeStyle="#9C6232";x.lineWidth=3.5;x.lineCap="round";x.beginPath();x.moveTo(0,0);x.lineTo(0,-124);x.stroke();
+    x.fillStyle="#E0303A";x.beginPath();x.arc(0,-132,8,0,TAU);x.fill();x.fillStyle="rgba(255,255,255,.45)";x.beginPath();x.arc(-3,-135,2.4,0,TAU);x.fill();x.fillStyle="#3DAA4E";x.beginPath();x.ellipse(4,-142,5,2.4,-.6,0,TAU);x.fill();
+    x.save();x.translate(0,-120);if(f[1]<0)x.scale(-1,1);ilFlag(58,40,4,t,f[2]);x.restore();x.restore()});
+  var ko=ez(e,.2,1.1),half=8+50*ko;x.fillStyle="#F3E6C8";x.fillRect(-half,-104,half*2,92);x.fillStyle="rgba(150,110,60,.18)";x.fillRect(-half,-104,half*2,5);x.fillRect(-half,-17,half*2,5);
+  x.save();x.globalAlpha=ko;x.strokeStyle="rgba(60,40,20,.55)";x.lineWidth=1.3;for(var col=0;col<2;col++)for(var r=0;r<10;r++){var cx0=-half+10+col*(half-6),w=(half-16)*(.7+.3*((r*7+col)%3)/2);if(w<=2)continue;x.beginPath();x.moveTo(cx0,-92+r*7.5);x.lineTo(cx0+w,-92+r*7.5);x.stroke()}x.restore();
+  [-half,half].forEach(function(rx){x.fillStyle="#7A4A24";x.beginPath();x.roundRect(rx-4,-128,8,124,3);x.fill();x.fillStyle="#E8C27A";x.beginPath();x.roundRect(rx-10,-110,20,8,3);x.fill();x.beginPath();x.roundRect(rx-10,-16,20,8,3);x.fill();x.fillStyle="#C8902A";x.beginPath();x.arc(rx,-134,6,0,TAU);x.fill();x.beginPath();x.arc(rx,2,5,0,TAU);x.fill()})})})});
+
+/* חנוכה: מסך מלא יותר — שרשרת, סופגניות, מטבעות שוקולד */
+add("סביבה","קישוטי חנוכה",function(){zone();var fired=0;
+  bg(function(e,t){var k=ez(e,.1,1.2);
+    garland(4,16,12,k,function(i){var c=["#1F5FBF","#FFFFFF","#E9B341"][i%3];x.fillStyle=c;x.strokeStyle="rgba(0,32,63,.2)";x.lineWidth=.6;
+      if(i%2){x.translate(0,9);x.beginPath();for(var tr=0;tr<2;tr++){var a0=tr?PI/2:-PI/2;for(var v=0;v<=3;v++){var a=a0+v*TAU/3,px=Math.cos(a)*7,py=Math.sin(a)*7;v?x.lineTo(px,py):x.moveTo(px,py)}x.closePath()}x.fill();x.stroke()}
+      else{x.beginPath();x.moveTo(-10,0);x.lineTo(10,0);x.lineTo(0,17);x.closePath();x.fill();x.stroke()}},.06);
+    // sufganiyot on plates at both sides of the menorah
+    [-1,1].forEach(function(sd,si){var kd=ez(e,.5+si*.15,.6);if(kd<=0)return;x.save();x.translate(Z.cx+sd*Math.min(W/2-48,150*Z.sc),Z.base-4);x.scale(Z.sc*kd,Z.sc*kd);
+      x.fillStyle="rgba(0,20,40,.12)";x.beginPath();x.ellipse(0,6,40,6,0,0,TAU);x.fill();x.fillStyle="#FFFFFF";x.beginPath();x.ellipse(0,2,38,8,0,0,TAU);x.fill();x.fillStyle="#E6E9EC";x.beginPath();x.ellipse(0,2,28,5,0,0,TAU);x.fill();
+      [[-14,-10],[14,-10],[0,-30]].forEach(function(d){x.save();x.translate(d[0],d[1]);var g=x.createRadialGradient(-5,-6,2,0,0,17);g.addColorStop(0,"#F2C27A");g.addColorStop(1,"#C98534");x.fillStyle=g;x.beginPath();x.ellipse(0,0,17,13,0,0,TAU);x.fill();
+        x.fillStyle="#F3E9DA";x.beginPath();x.ellipse(0,-6,13,6,0,0,TAU);x.fill();x.fillStyle="#FFFFFF";for(var p=0;p<7;p++){x.beginPath();x.arc(-10+p*3.4,-6+Math.sin(p*2)*2,1.2,0,TAU);x.fill()}
+        x.fillStyle="#C21F3A";x.beginPath();x.ellipse(0,-9,4.5,3,0,0,TAU);x.fill();x.fillStyle="rgba(255,255,255,.5)";x.beginPath();x.arc(-1.5,-10,1,0,TAU);x.fill();x.restore()});x.restore()});
+    // gold chocolate coins pouring in once, settling into a little pile
+    if(e>1.4&&!fired){fired=1;for(var i=0;i<14;i++)part({x:rnd(20,W-20),y:rnd(-260,-20),vy:rnd(1,2),g:.04,tv:3.4,size:rnd(8,11),shape:"coin",flip:rnd(0,TAU),vf:rnd(.12,.2),rot:rnd(-.3,.3),max:9,fade:0,col:"#fff"})}
+    if(R()<.025)part({x:rnd(10,W-10),y:rnd(90,H*.8),size:rnd(2,3.5),col:pick(["#FFD45A","#FFFFFF","#7FB2F0"]),shape:"star4",max:1.4,fade:1,twk:6})})});
+
+/* שרב: השמש בפינה השמאלית העליונה, הצצה גדולה מהפינה */
+add("טבע","שמש בפינה",function(){zone();bg(function(e,t){var k=ez(e,0,2),cx=W*.08,cy=58-(1-k)*120,r=58;
+  x.save();x.globalCompositeOperation=S.add;var gl=x.createRadialGradient(cx,cy,0,cx,cy,r*6);gl.addColorStop(0,"rgba(255,200,90,"+.55*k+")");gl.addColorStop(.35,"rgba(255,150,60,"+.18*k+")");gl.addColorStop(1,"rgba(255,150,60,0)");x.fillStyle=gl;x.fillRect(0,0,W,H);x.restore();
+  x.save();x.translate(cx,cy);x.rotate(t*.00015);x.strokeStyle="#FFB12E";x.lineWidth=6;x.lineCap="round";x.globalAlpha=k;for(var i=0;i<18;i++){var a=i*TAU/18,l=r*(1.5+.16*Math.sin(t*.003+i));x.beginPath();x.moveTo(Math.cos(a)*r*1.18,Math.sin(a)*r*1.18);x.lineTo(Math.cos(a)*l,Math.sin(a)*l);x.stroke()}x.restore();
+  var g=x.createRadialGradient(cx-14,cy-14,6,cx,cy,r);g.addColorStop(0,"#FFF3B8");g.addColorStop(.6,"#FFC93C");g.addColorStop(1,"#FF9A1E");x.save();x.globalAlpha=k;x.fillStyle=g;x.beginPath();x.arc(cx,cy,r,0,TAU);x.fill();x.restore();
+})});
+
+
+/* הבוקר שאחרי האוסקר: הפסלון מהקובץ המורשה של רן (Vecteezy), מוצב כמו שהוא */
+var OSCAR_IMG=new Image();OSCAR_IMG.src="data:image/png;base64,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";var OSC_W=196,OSC_H=520,oscOff=document.createElement("canvas");
+add("ימים מיוחדים","פסלון האוסקר",function(){zone();bg(function(e,t){
+  x.save();x.globalCompositeOperation=S.add;[[W*.08,1],[W*.92,-1]].forEach(function(b){var a=-PI/2+Math.sin(t*.0011)*.35*b[1];var g=x.createLinearGradient(b[0],H,b[0]+Math.cos(a)*H,H+Math.sin(a)*H);g.addColorStop(0,"rgba(255,240,200,.45)");g.addColorStop(1,"rgba(255,240,200,0)");
+    x.fillStyle=g;x.globalAlpha=ez(e,.3,1);x.beginPath();x.moveTo(b[0],H+10);x.lineTo(b[0]+Math.cos(a-.08)*H*1.4,H+Math.sin(a-.08)*H*1.4);x.lineTo(b[0]+Math.cos(a+.08)*H*1.4,H+Math.sin(a+.08)*H*1.4);x.closePath();x.fill()});x.restore();
+  light("255,210,120",.32*ez(e,1,1),Z.base-90*Z.sc);
+  var kc=ez(e,0,.8),D=14;x.save();x.globalAlpha=.9*kc;x.fillStyle="#C21F3A";x.beginPath();x.moveTo(Z.cx-22*Z.sc*kc,Z.base+D-46*Z.sc);x.lineTo(Z.cx+22*Z.sc*kc,Z.base+D-46*Z.sc);x.lineTo(Z.cx+92*Z.sc*kc,Z.base+D+8);x.lineTo(Z.cx-92*Z.sc*kc,Z.base+D+8);x.closePath();x.fill();x.fillStyle="#E9B341";x.fillRect(Z.cx-92*Z.sc*kc,Z.base+D+6,184*Z.sc*kc,2);x.restore();
+  if(!OSCAR_IMG.complete)return;
+  var dn=14,hh=Math.min(Z.h+10,200*Z.sc),ww=hh*OSC_W/OSC_H,k=ez(e,.4,.9),px=Z.cx-ww/2,py=Z.base+dn-hh+(1-k)*24;
+  // shine sweep clipped to the statue itself
+  if(oscOff.width!==Math.ceil(ww*2)){oscOff.width=Math.ceil(ww*2);oscOff.height=Math.ceil(hh*2)}var o=oscOff.getContext("2d");o.setTransform(2,0,0,2,0,0);o.clearRect(0,0,ww,hh);o.globalCompositeOperation="source-over";o.drawImage(OSCAR_IMG,0,0,ww,hh);
+  var ph=((t*.0004)%1.6)-.3;if(ph>-.1&&ph<1.1){var c0=Math.min(1,Math.max(0,ph-.12)),c1=Math.min(1,Math.max(0,ph)),c2=Math.min(1,Math.max(0,ph+.12));o.globalCompositeOperation="source-atop";var sg=o.createLinearGradient(0,0,ww,hh*.35);sg.addColorStop(c0,"rgba(255,255,255,0)");sg.addColorStop(c1,"rgba(255,255,240,.55)");sg.addColorStop(c2,"rgba(255,255,255,0)");o.fillStyle=sg;o.fillRect(0,0,ww,hh)}
+  x.save();x.globalAlpha=k;x.fillStyle="rgba(0,20,40,.22)";x.beginPath();x.ellipse(Z.cx,Z.base+dn+4,ww*.6,6,0,0,TAU);x.fill();x.drawImage(oscOff,px,py,ww,hh);x.restore();
+  if(e>1&&R()<.05)part({x:px+ww*rnd(.3,.75),y:py+hh*rnd(.02,.5),size:rnd(4,7),col:"#FFF6C8",shape:"star4",max:.8,fade:1,glow:2.5});
+  if(e>1&&R()<.05)part({x:rnd(20,W-20),y:rnd(Z.base,H*.85),size:24,col:"#FFFFFF",max:.3,fade:1,glow:4,shape:"star4"})})});
+
+/* ===== weekday sets: Sunday–Wednesday, three bespoke 2D scenes each ===== */
+function hsh(n){var s=Math.sin(n*127.1)*43758.5453;return s-Math.floor(s)}
+function pot(px,py,s){x.save();x.translate(px,py);x.scale(s,s);x.fillStyle="#C9653A";x.beginPath();x.moveTo(-22,-30);x.lineTo(22,-30);x.lineTo(16,0);x.lineTo(-16,0);x.closePath();x.fill();x.fillStyle="#B05530";x.fillRect(-25,-36,50,9);x.fillStyle="rgba(255,255,255,.18)";x.fillRect(-18,-26,5,22);x.fillStyle="#5A3A22";x.beginPath();x.ellipse(0,-36,22,4,0,0,TAU);x.fill();x.restore()}
+function note(px,py,s,c){x.save();x.translate(px,py);x.scale(s,s);x.fillStyle=c;x.strokeStyle=c;x.lineWidth=2;x.beginPath();x.ellipse(0,0,5,3.6,-.4,0,TAU);x.fill();x.beginPath();x.moveTo(4.4,-1);x.lineTo(4.4,-20);x.quadraticCurveTo(9,-16,12,-10);x.stroke();x.restore()}
+shapes.note=function(p,s){note(0,0,s/6,p.col)};
+function cloud(cx,cy,s,a){x.save();x.globalAlpha=a;x.fillStyle="#FFFFFF";x.translate(cx,cy);x.scale(s,s);x.beginPath();x.arc(0,0,20,0,TAU);x.arc(24,-10,24,0,TAU);x.arc(48,0,18,0,TAU);x.arc(24,8,20,0,TAU);x.fill();x.restore()}
+
+/* ---- ראשון ---- */
+add("שבוע","זריחה מעל העיר",function(){zone();var B=[],hw=W/2/Z.sc+12,cur=-hw;while(cur<hw){var w=14+hsh(cur)*26,h=34+hsh(cur+9)*96;if(Math.abs(cur+w/2)<34)h=120+hsh(cur)*30;B.push({x:cur,w:w,h:h,t:hsh(cur+3)});cur+=w+2}
+  bg(function(e,t){var ks=ez(e,0,2.6);light("255,170,90",.45*ks,Z.base-50*Z.sc);local(function(){
+    var sy=-10-ks*96;x.save();x.globalCompositeOperation=S.add;var g=x.createRadialGradient(34,sy,0,34,sy,120);g.addColorStop(0,"rgba(255,200,110,.6)");g.addColorStop(1,"rgba(255,170,90,0)");x.fillStyle=g;x.beginPath();x.arc(34,sy,120,0,TAU);x.fill();x.restore();
+    var sg=x.createRadialGradient(28,sy-6,4,34,sy,30);sg.addColorStop(0,"#FFF3C2");sg.addColorStop(1,"#FFAE3A");x.fillStyle=sg;x.beginPath();x.arc(34,sy,30,0,TAU);x.fill();
+    B.forEach(function(b,i){var kb=ez(e,.1+i*.015,.5);if(kb<=0)return;var h=b.h*kb;x.fillStyle=b.t<.5?"#1B3556":"#24446B";if(isDark())x.fillStyle=b.t<.5?"#0E1E33":"#15294A";
+      x.beginPath();if(b.t>.82){x.moveTo(b.x,0);x.lineTo(b.x,-h);x.lineTo(b.x+b.w/2,-h-12);x.lineTo(b.x+b.w,-h);x.lineTo(b.x+b.w,0)}else x.rect(b.x,-h,b.w,h);x.fill();
+      for(var r=0;r<Math.floor(h/9)-1;r++)for(var c=0;c<Math.floor(b.w/7);c++){var id=i*97+r*13+c,on=hsh(id)<Math.min(.55,(e-1.4)*.12+hsh(id+5)*.0);if(e>1.2&&hsh(id)<Math.min(.6,(e-1.2)*.18)){x.fillStyle="rgba(255,214,120,.95)";x.fillRect(b.x+3+c*7,-h+6+r*9,3.4,4.4)}}});
+    x.fillStyle=isDark()?"#0A1628":"#142A45";x.fillRect(-hw,0,hw*2,5)});
+    if(e>1.6&&R()<.012)part({x:-20,y:Z.top+rnd(10,50),vx:rnd(1.4,2),vy:rnd(-.2,.1),size:7,col:isDark()?"#E6E9EC":"#00203F",shape:"bird",max:9,fade:0})})});
+add("שבוע","מכונת אספרסו",function(){zone();bg(function(e,t){light("210,140,80",.3*ez(e,.3,1.2),Z.base-70*Z.sc);local(function(){var k=ez(e,0,.7);x.save();x.globalAlpha=k;groundShadow(70);
+    x.fillStyle="#2F3540";x.beginPath();x.roundRect(-58,-176,116,40,10);x.fill();x.fillStyle="#3E4552";x.fillRect(-58,-150,116,6);x.fillStyle="#AEB8C4";x.beginPath();x.roundRect(-26,-136,52,14,4);x.fill();
+    x.fillStyle="#1B1B22";x.beginPath();x.roundRect(-90,-134,66,9,4);x.fill();x.fillStyle="#AEB8C4";x.fillRect(-10,-122,6,6);x.fillRect(4,-122,6,6);
+    x.fillStyle="#E6E9EC";x.beginPath();x.ellipse(0,-2,58,9,0,0,TAU);x.fill();x.fillStyle="#C9CFD6";x.beginPath();x.ellipse(0,-3,40,5,0,0,TAU);x.fill();
+    var cupTop=-60,cupBot=-8;function cup(){x.beginPath();x.moveTo(-36,cupTop);x.lineTo(36,cupTop);x.bezierCurveTo(36,-20,26,cupBot,0,cupBot);x.bezierCurveTo(-26,cupBot,-36,-20,-36,cupTop);x.closePath()}
+    x.strokeStyle="#FFFFFF";x.lineWidth=7;x.beginPath();x.ellipse(40,-38,12,14,0,-1.3,1.3);x.stroke();x.fillStyle="#FFFFFF";cup();x.fill();
+    var lv=ez(e,.9,2.8);x.save();cup();x.clip();x.fillStyle="#5B3417";x.fillRect(-40,cupTop+6+(1-lv)*46,80,60);x.fillStyle="#C98A4B";x.beginPath();x.ellipse(0,cupTop+6+(1-lv)*46,40,5,0,0,TAU);x.fill();x.restore();
+    x.fillStyle="#F3F5F7";x.beginPath();x.ellipse(0,cupTop,36,6,0,0,TAU);x.fill();x.save();x.beginPath();x.ellipse(0,cupTop,32,4.6,0,0,TAU);x.clip();x.fillStyle=lv>.95?"#C98A4B":"#E9EDF1";x.fillRect(-40,cupTop-6,80,12);x.restore();
+    x.fillStyle="rgba(0,32,63,.08)";x.fillRect(-30,-50,6,30);
+    if(e>.8&&lv<1){x.strokeStyle="#6B3E1C";x.lineWidth=2.4;x.lineCap="round";[-7,7].forEach(function(sx,i){x.beginPath();x.moveTo(sx,-116);x.quadraticCurveTo(sx+Math.sin(t*.02+i)*1.5,-90,sx*.6,cupTop+4+(1-lv)*46);x.stroke()})}
+    if(lv>=1){x.strokeStyle=isDark()?"rgba(255,255,255,.35)":"rgba(0,32,63,.25)";x.lineWidth=2.5;x.lineCap="round";for(var s2=0;s2<3;s2++){var ph=((t*.0005+s2*.33)%1);x.globalAlpha=k*Math.sin(ph*PI);x.beginPath();for(var j=0;j<=12;j++){var yy=cupTop-8-ph*40-j*3,xx=(s2-1)*12+Math.sin(j*.7+t*.003+s2)*5;j?x.lineTo(xx,yy):x.moveTo(xx,yy)}x.stroke()}}x.restore()})})});
+add("שבוע","תריסים נפתחים",function(){zone();var n=16;for(var i=0;i<26;i++)part({x:rnd(0,W),y:rnd(0,H*.8),vx:rnd(-.08,.12),vy:rnd(-.05,.08),size:rnd(.8,1.8),col:"#FFF4D6",max:30,fade:0,fin:rnd(1.6,3),twk:rnd(2,5),glow:2.5,sway:.004});
+  bg(function(e,t){var ko=ez(e,.3,1.4),ku=ez(e,2.2,1.4);
+    x.save();x.globalCompositeOperation=S.add;var kr=ez(e,1,1.6);for(var r=0;r<4;r++){var x0=W*(.05+r*.22),g=x.createLinearGradient(x0,0,x0+H*.5,H);g.addColorStop(0,"rgba(255,235,190,"+.38*kr+")");g.addColorStop(1,"rgba(255,235,190,0)");x.fillStyle=g;x.beginPath();x.moveTo(x0,0);x.lineTo(x0+46,0);x.lineTo(x0+46+H*.55,H);x.lineTo(x0+H*.55,H);x.closePath();x.fill()}x.restore();
+    var sh=H/n;x.save();x.translate(0,-H*ku);for(var i=0;i<n;i++){var th=sh*(1-.86*ko),y=i*sh+(sh-th)/2;x.fillStyle=isDark()?"rgba(70,70,74,.92)":"rgba(246,242,234,.94)";x.fillRect(0,y,W,th);x.fillStyle="rgba(0,32,63,.08)";x.fillRect(0,y+th-1.5,W,1.5)}
+    x.strokeStyle="rgba(0,32,63,.25)";x.lineWidth=1;[W*.2,W*.8].forEach(function(cx){x.beginPath();x.moveTo(cx,0);x.lineTo(cx,H);x.stroke()});x.fillStyle=isDark()?"#555":"#E8E2D6";x.fillRect(0,H-10,W,10);x.restore();
+    local(function(){var kp=ez(e,1.2,.7);x.save();x.globalAlpha=kp;x.translate(0,(1-kp)*16);groundShadow(40);pot(0,0,1.25);x.fillStyle="#4E9A3E";x.beginPath();x.roundRect(-11,-110,22,66,11);x.fill();x.beginPath();x.roundRect(-34,-88,14,34,7);x.fill();x.beginPath();x.roundRect(20,-98,14,40,7);x.fill();
+      x.fillRect(-26,-60,16,8);x.fillRect(10,-64,16,8);x.strokeStyle="rgba(255,255,255,.35)";x.lineWidth=1.2;x.beginPath();x.moveTo(-3,-104);x.lineTo(-3,-50);x.moveTo(4,-104);x.lineTo(4,-50);x.stroke();
+      var kf=ez(e,2,.6);if(kf>0){x.save();x.translate(0,-112);x.scale(kf,kf);for(var p=0;p<6;p++){var a=p*TAU/6;x.fillStyle="#FA1664";x.beginPath();x.ellipse(Math.cos(a)*6,Math.sin(a)*6,6,3.4,a,0,TAU);x.fill()}x.fillStyle="#FFC94A";x.beginPath();x.arc(0,0,3.4,0,TAU);x.fill();x.restore()}x.restore()})})});
+
+/* ---- שני ---- */
+add("שבוע","צמח שגדל",function(){zone();var L=[[-.45,1],[.5,-1],[-.62,1],[.68,-1],[-.8,1],[.86,-1]],dropped=0;
+  bg(function(e,t){light("140,210,120",.26*ez(e,.8,1.4),Z.base-80*Z.sc);local(function(){groundShadow(46);pot(0,0,1.5);
+    var kg=ez(e,.3,2.2),top=-54-96*kg,sw=Math.sin(t*.0012)*4*kg;x.strokeStyle="#3D8A3A";x.lineWidth=4;x.lineCap="round";x.beginPath();x.moveTo(0,-54);x.quadraticCurveTo(sw*.5,(-54+top)/2,sw,top);x.stroke();
+    L.forEach(function(l,i){var kl=ez(e,.6+i*.3,.7);if(kl<=0)return;var u=l[0]<0?-l[0]:l[0],py=-54+(top+54)*u,px=sw*u;x.save();x.translate(px,py);x.rotate(l[1]*(1.1-u*.4)+Math.sin(t*.0015+i)*.05);x.scale(kl*(1.1-u*.35),kl*(1.1-u*.35));
+      x.fillStyle=i%2?"#5BAA47":"#4E9A3E";x.beginPath();x.moveTo(0,0);x.bezierCurveTo(-14,-10,-22,-32,0,-46);x.bezierCurveTo(22,-32,14,-10,0,0);x.fill();x.strokeStyle="rgba(255,255,255,.35)";x.lineWidth=1.2;x.beginPath();x.moveTo(0,-2);x.lineTo(0,-40);x.stroke();x.restore()});
+    var kw=ez(e,.2,.7)*(1-ez(e,3.4,.8));window.__spout=null;if(kw>0){var cx0=96-(1-kw)*60,cy0=-150,ra=-.35*kw,c=Math.cos(ra),sn=Math.sin(ra);window.__spout=[cx0+(-56*c-(-10)*sn),cy0+(-56*sn+(-10)*c),kw];x.save();x.translate(cx0,cy0);x.rotate(ra);x.globalAlpha=kw;x.fillStyle="#06B3E5";x.beginPath();x.roundRect(-20,-18,46,34,8);x.fill();x.strokeStyle="#06B3E5";x.lineWidth=5;x.beginPath();x.arc(20,-4,16,-1.4,1.4);x.stroke();
+      x.beginPath();x.moveTo(-18,0);x.lineTo(-52,-10);x.stroke();x.fillStyle="#0484AF";x.beginPath();x.ellipse(-54,-10,5,8,.3,0,TAU);x.fill();x.restore();var sp=window.__spout;if(sp&&kw>.9&&e<3.3){x.save();x.lineCap="round";for(var w=0;w<3;w++){x.strokeStyle="rgba(90,190,235,"+(.55-w*.12)+")";x.lineWidth=3.2-w;x.beginPath();x.moveTo(sp[0],sp[1]);x.quadraticCurveTo(sp[0]-26+w*4+Math.sin(t*.02+w)*1.5,sp[1]+6,8+w*5,-38);x.stroke()}x.restore()}}});
+    var sp=window.__spout;if(sp&&sp[2]>.9&&e>.8&&e<3.3&&R()<.6)part({x:Z.cx+sp[0]*Z.sc,y:Z.base+sp[1]*Z.sc,vx:-rnd(.9,1.4)*Z.sc,vy:rnd(-.2,.3),g:.16*Z.sc,size:rnd(1.4,2.2),col:"#7FDDF7",shape:"drop",max:1.2,fade:0,upd:function(q){if(q.y>Z.base-40*Z.sc)q.max=0}})})});
+add("שבוע","מנורת שולחן",function(){zone();bg(function(e,t){var on=e<.9?0:(e<1.05?1:e<1.15?0:e<1.25?1:e<1.32?.2:1);var ko=ez(e,.9,.5)*on;light("255,220,150",.3*ko,Z.base-30*Z.sc);local(function(){groundShadow(110);
+    x.fillStyle=isDark()?"#5A4A3A":"#C9A57A";x.fillRect(-140,0,280,6);
+    x.save();x.translate(46,-6);x.rotate(-.06);x.fillStyle="#FFFFFF";x.fillRect(-46,-28,92,30);x.fillStyle="#F3F5F7";x.fillRect(0,-28,46,30);x.strokeStyle="rgba(6,179,229,.5)";x.lineWidth=1;for(var r=0;r<5;r++){x.beginPath();x.moveTo(-40,-22+r*5.5);x.lineTo(-6,-22+r*5.5);x.moveTo(6,-22+r*5.5);x.lineTo(40,-22+r*5.5);x.stroke()}
+      x.strokeStyle="rgba(0,32,63,.2)";x.beginPath();x.moveTo(0,-28);x.lineTo(0,2);x.stroke();x.rotate(.5);x.fillStyle="#FFC94A";x.fillRect(-10,-46,46,5);x.fillStyle="#F3B08A";x.beginPath();x.moveTo(36,-46);x.lineTo(44,-43.5);x.lineTo(36,-41);x.fill();x.restore();
+    x.fillStyle="#FA1664";x.beginPath();x.roundRect(104,-30,22,28,4);x.fill();x.strokeStyle="#FA1664";x.lineWidth=3.5;x.beginPath();x.arc(126,-16,7,-1.3,1.3);x.stroke();
+    if(ko>0){x.save();x.globalCompositeOperation=S.add;var g=x.createLinearGradient(0,-120,0,0);g.addColorStop(0,"rgba(255,230,160,"+.6*ko+")");g.addColorStop(1,"rgba(255,230,160,"+.12*ko+")");x.fillStyle=g;x.beginPath();x.moveTo(8,-112);x.lineTo(42,-104);x.lineTo(110,0);x.lineTo(-20,0);x.closePath();x.fill();x.restore()}
+    x.strokeStyle="#00203F";x.lineWidth=6;x.lineCap="round";x.lineJoin="round";x.beginPath();x.moveTo(-82,-4);x.lineTo(-60,-86);x.lineTo(4,-128);x.stroke();x.fillStyle="#00203F";x.beginPath();x.ellipse(-82,-2,26,6,0,0,TAU);x.fill();x.beginPath();x.arc(-60,-86,6,0,TAU);x.fill();
+    x.save();x.translate(14,-118);x.rotate(.55);x.fillStyle="#06B3E5";x.beginPath();x.moveTo(-10,-14);x.lineTo(10,-14);x.lineTo(24,14);x.lineTo(-24,14);x.closePath();x.fill();x.fillStyle=ko>0?"#FFF6D0":"#AEB8C4";x.beginPath();x.ellipse(0,14,22,4,0,0,TAU);x.fill();x.restore()})})});
+add("שבוע","נורה נדלקת",function(){zone();bg(function(e,t){var kl=ez(e,.8,1.2);light("255,210,110",.42*kl,Z.base-70*Z.sc);local(function(){var sway=Math.sin(t*.0011)*.05,topY=-(Z.h+6)/Z.sc;x.save();x.rotate(sway);
+    x.strokeStyle=isDark()?"#9AA4B2":"#00203F";x.lineWidth=2;x.beginPath();x.moveTo(0,topY);x.lineTo(0,-124);x.stroke();x.fillStyle="#AEB8C4";x.beginPath();x.roundRect(-11,-128,22,26,3);x.fill();x.fillStyle="rgba(0,32,63,.25)";for(var r=0;r<4;r++)x.fillRect(-11,-124+r*6,22,1.6);
+    if(kl>0){x.save();x.globalCompositeOperation=S.add;var g=x.createRadialGradient(0,-64,0,0,-64,120);g.addColorStop(0,"rgba(255,226,140,"+.75*kl+")");g.addColorStop(1,"rgba(255,200,90,0)");x.fillStyle=g;x.beginPath();x.arc(0,-64,120,0,TAU);x.fill();x.restore();
+      x.strokeStyle="rgba(255,200,90,"+.8*kl+")";x.lineWidth=3;x.lineCap="round";for(var i=0;i<10;i++){var a=-PI+i*PI/9+.0001,pl=.8+.2*Math.sin(t*.004+i);x.beginPath();x.moveTo(Math.cos(a)*52,-64+Math.sin(a)*52*-1*-1);x.lineTo(Math.cos(a)*(52+16*pl*kl),-64+Math.sin(a)*(52+16*pl*kl));x.stroke()}}
+    x.fillStyle=kl>0?"rgba(255,248,220,"+(.55+.4*kl)+")":"rgba(255,255,255,.55)";x.strokeStyle="rgba(0,32,63,.25)";x.lineWidth=1.5;x.beginPath();x.moveTo(-12,-102);x.bezierCurveTo(-14,-92,-38,-84,-38,-60);x.arc(0,-60,38,PI,0,true);x.bezierCurveTo(38,-84,14,-92,12,-102);x.closePath();x.fill();x.stroke();
+    var fc=kl<.3?"#8A6A40":(kl<.7?"#FF9A2E":"#FFF4C8");x.strokeStyle=fc;x.lineWidth=2;x.beginPath();x.moveTo(-6,-100);x.lineTo(-8,-70);for(var z=0;z<6;z++)x.lineTo(-8+z*3.2,-70+(z%2?-6:0));x.lineTo(8,-70);x.lineTo(6,-100);x.stroke();
+    x.fillStyle="rgba(255,255,255,.7)";x.beginPath();x.ellipse(-20,-70,5,12,.4,0,TAU);x.fill();x.restore()})})});
+
+/* ---- שלישי: פעמיים כי טוב ---- */
+add("שבוע","שתי חמניות",function(){zone();var bee={a:0};bg(function(e,t){light("255,200,80",.3*ez(e,1.2,1.2),Z.base-90*Z.sc);local(function(){groundShadow(80);
+  [[-44,128,0,.1],[46,100,1.4,.4]].forEach(function(f,i){var kg=ez(e,f[3],1.2),h=f[1]*kg,tilt=Math.sin(t*.001+f[2])*.06;x.strokeStyle="#3D8A3A";x.lineWidth=5;x.lineCap="round";x.beginPath();x.moveTo(f[0],0);x.quadraticCurveTo(f[0]+6,-h/2,f[0]+Math.sin(tilt)*20,-h);x.stroke();
+    [.35,.6].forEach(function(u,j){var kl=ez(e,f[3]+.6+j*.2,.5);if(kl<=0)return;x.save();x.translate(f[0]+3,-h*u);x.rotate(j?-.9:.9);x.scale(kl,kl);x.fillStyle="#4E9A3E";x.beginPath();x.moveTo(0,0);x.bezierCurveTo(-8,-6,-12,-22,0,-30);x.bezierCurveTo(12,-22,8,-6,0,0);x.fill();x.restore()});
+    var kb=ez(e,f[3]+1,.8);if(kb<=0)return;x.save();x.translate(f[0]+Math.sin(tilt)*20,-h);x.rotate(tilt);for(var p=0;p<18;p++){var a=p*TAU/18,pk=Math.min(1,kb*1.3-p*.02);if(pk<=0)continue;x.save();x.rotate(a);x.fillStyle=p%2?"#FFC93C":"#F2B21E";x.beginPath();x.ellipse(0,-24*pk,6,13*pk,0,0,TAU);x.fill();x.restore()}
+      x.fillStyle="#6B3E1C";x.beginPath();x.arc(0,0,16*kb,0,TAU);x.fill();x.fillStyle="#4A2A12";for(var d=0;d<30;d++){var r=Math.sqrt(d/30)*13*kb,an=d*2.4;x.beginPath();x.arc(Math.cos(an)*r,Math.sin(an)*r,1.3,0,TAU);x.fill()}x.restore()});
+  if(e>2){bee.a+=.03;var bx=Math.sin(bee.a)*60,by=-120+Math.sin(bee.a*2)*18;x.save();x.translate(bx,by);x.fillStyle="#FFC93C";x.beginPath();x.ellipse(0,0,7,5,0,0,TAU);x.fill();x.fillStyle="#1B1B22";x.fillRect(-2,-5,2.4,10);x.fillRect(2.4,-5,2.4,10);
+    x.fillStyle="rgba(255,255,255,.75)";var fl=Math.abs(Math.sin(t*.05))*4+2;x.beginPath();x.ellipse(-2,-6,3,fl,-.3,0,TAU);x.ellipse(3,-6,3,fl,.3,0,TAU);x.fill();x.restore()}})})});
+add("שבוע","כדור פורח",function(){zone();var cl=[[.05,.18,.8],[.72,.3,1],[.3,.6,.7],[.85,.62,.9]];bg(function(e,t){light("255,200,140",.24*ez(e,.3,1.4),H*.4);
+  cl.forEach(function(c,i){cloud(((c[0]*W+t*.008*(i+1))%(W+140))-90,c[1]*H,c[2],(isDark()?.25:.85)*ez(e,0,1))});
+  var ku=ez(e,0,3.2),bx=Z.cx+Math.sin(t*.0009)*8,by=H+140-ku*(H+140-(Z.base-86*Z.sc)),s=Z.sc*.88;x.save();x.translate(bx,by);x.scale(s,s);
+  var burn=(t%2400)<500;if(burn){x.save();x.globalCompositeOperation=S.add;var g=x.createRadialGradient(0,40,0,0,40,40);g.addColorStop(0,"rgba(255,180,80,.7)");g.addColorStop(1,"rgba(255,140,40,0)");x.fillStyle=g;x.beginPath();x.arc(0,40,40,0,TAU);x.fill();x.restore();x.fillStyle="#FFB12E";x.beginPath();x.moveTo(0,22);x.quadraticCurveTo(6,36,0,46);x.quadraticCurveTo(-6,36,0,22);x.fill()}
+  function env(){x.beginPath();x.moveTo(0,48);x.bezierCurveTo(-30,26,-62,0,-62,-40);x.bezierCurveTo(-62,-80,-34,-104,0,-104);x.bezierCurveTo(34,-104,62,-80,62,-40);x.bezierCurveTo(62,0,30,26,0,48);x.closePath()}
+  x.save();env();x.clip();var cols=["#06B3E5","#FFFFFF","#FA1664","#FFFFFF","#06B3E5","#FFC94A","#06B3E5","#FFFFFF","#FA1664"];for(var gi=0;gi<9;gi++){x.fillStyle=cols[gi];x.beginPath();x.moveTo(0,52);var a0=-62+gi*13.8,a1=a0+13.8;x.bezierCurveTo(a0*1.3,0,a0*1.1,-80,a0*.2,-108);x.lineTo(a1*.2,-108);x.bezierCurveTo(a1*1.1,-80,a1*1.3,0,0,52);x.fill()}
+  var hl=x.createLinearGradient(-62,0,62,0);hl.addColorStop(0,"rgba(0,32,63,.25)");hl.addColorStop(.35,"rgba(255,255,255,0)");hl.addColorStop(1,"rgba(0,32,63,.28)");x.fillStyle=hl;x.fillRect(-70,-110,140,170);x.restore();
+  x.strokeStyle="#6B4A2B";x.lineWidth=1.2;x.beginPath();x.moveTo(-14,36);x.lineTo(-10,62);x.moveTo(14,36);x.lineTo(10,62);x.stroke();x.fillStyle="#9C6232";x.beginPath();x.roundRect(-13,60,26,20,3);x.fill();x.fillStyle="#7A4A24";x.fillRect(-13,60,26,4);x.restore()})});
+add("שבוע","פטיפון",function(){zone();var ang=0;bg(function(e,t){light("124,92,255",.22*ez(e,.8,1.2),Z.base-60*Z.sc);var ks=ez(e,.3,1.2);ang+=.06*ks;local(function(){groundShadow(110);
+  x.fillStyle=isDark()?"#5A4632":"#8B6340";x.beginPath();x.roundRect(-110,-70,220,64,10);x.fill();x.fillStyle=isDark()?"#4A3826":"#734F31";x.fillRect(-110,-16,220,10);x.fillStyle="#AEB8C4";x.beginPath();x.arc(84,-24,4,0,TAU);x.arc(70,-24,4,0,TAU);x.fill();
+  x.fillStyle="#3A3A44";x.beginPath();x.ellipse(-18,-48,76,22,0,0,TAU);x.fill();x.fillStyle="#141418";x.beginPath();x.ellipse(-18,-50,70,19,0,0,TAU);x.fill();
+  x.strokeStyle="rgba(255,255,255,.08)";x.lineWidth=1;for(var r=1;r<6;r++){x.beginPath();x.ellipse(-18,-50,70-r*10,19-r*2.7,0,0,TAU);x.stroke()}
+  x.save();x.beginPath();x.ellipse(-18,-50,70,19,0,0,TAU);x.clip();x.strokeStyle="rgba(255,255,255,.22)";x.lineWidth=6;x.beginPath();x.ellipse(-18,-50,52,14,0,ang,ang+.7);x.stroke();x.beginPath();x.ellipse(-18,-50,52,14,0,ang+PI,ang+PI+.7);x.stroke();x.restore();
+  x.fillStyle="#FA1664";x.beginPath();x.ellipse(-18,-50,18,5,0,0,TAU);x.fill();x.fillStyle="#FFC94A";x.beginPath();x.arc(-18+Math.cos(ang*1.3)*9,-50+Math.sin(ang*1.3)*2.4,1.6,0,TAU);x.fill();x.fillStyle="#E6E9EC";x.beginPath();x.arc(-18,-50,1.6,0,TAU);x.fill();
+  var ka=ez(e,.6,1);x.save();x.translate(80,-58);x.fillStyle="#AEB8C4";x.beginPath();x.arc(0,0,9,0,TAU);x.fill();x.rotate(-1.9+.55*ka);x.strokeStyle="#D9DEE5";x.lineWidth=4;x.lineCap="round";x.beginPath();x.moveTo(0,0);x.lineTo(0,64);x.stroke();x.fillStyle="#2F3540";x.beginPath();x.roundRect(-5,60,10,14,2);x.fill();x.restore()});
+  if(e>1.6&&R()<.025)part({x:Z.cx+rnd(-60,30)*Z.sc,y:Z.base-70*Z.sc,vx:rnd(-.4,.4),vy:-rnd(.4,.8),size:rnd(13,18),col:pick(["#7C5CFF","#FA1664","#06B3E5","#FFC94A"]),shape:"note",rot:rnd(-.3,.3),vr:rnd(-.01,.01),sway:.02,max:2.4,fade:1})})});
+
+/* ---- רביעי: אמצע השבוע ---- */
+add("שבוע","מפרשית",function(){zone();bg(function(e,t){light("120,200,255",.22*ez(e,.2,1.4),Z.base-60*Z.sc);var k=ez(e,0,1.2),sea=Z.base-6;
+  [["#7FDDF7",.75,0,-6],["#06B3E5",.8,1.3,2],["#0A6FA0",.85,2.6,10]].forEach(function(w,i){x.save();x.globalAlpha=w[1]*k;x.fillStyle=w[0];x.beginPath();x.moveTo(0,sea+24);for(var xx=0;xx<=W;xx+=6)x.lineTo(xx,sea+w[3]+Math.sin(xx*.03+t*.0016*(1+i*.3)+w[2])*4);x.lineTo(W,sea+24);x.closePath();x.fill();
+    var fade=x.createLinearGradient(0,sea+w[3],0,sea+w[3]+40);x.restore()});
+  var bx=Z.cx+(1-ez(e,0,2.4))*-W*.7+Math.sin(t*.0007)*14,by=sea-2+Math.sin(t*.0024)*2.5,rock=Math.sin(t*.0024+.6)*.05;x.save();x.translate(bx,by);x.rotate(rock);x.scale(Z.sc,Z.sc);
+  x.fillStyle="#00203F";x.beginPath();x.moveTo(-60,-10);x.lineTo(62,-10);x.quadraticCurveTo(50,8,36,10);x.lineTo(-44,10);x.quadraticCurveTo(-54,4,-60,-10);x.fill();x.fillStyle="#FA1664";x.fillRect(-56,-12,114,4);
+  x.strokeStyle="#9C6232";x.lineWidth=3;x.beginPath();x.moveTo(0,-12);x.lineTo(0,-138);x.stroke();x.fillStyle="#FFFFFF";x.beginPath();x.moveTo(4,-134);x.quadraticCurveTo(44+Math.sin(t*.002)*4,-80,58,-20);x.lineTo(4,-20);x.closePath();x.fill();
+  x.fillStyle="#06B3E5";x.beginPath();x.moveTo(-4,-124);x.quadraticCurveTo(-34,-76,-50,-22);x.lineTo(-4,-22);x.closePath();x.fill();x.fillStyle="#FA1664";x.beginPath();x.moveTo(0,-138);x.lineTo(16,-132);x.lineTo(0,-126);x.fill();x.restore();
+  if(e>1&&R()<.008)part({x:-20,y:Z.top+rnd(0,40),vx:rnd(1,1.6),size:7,col:isDark()?"#E6E9EC":"#00203F",shape:"bird",max:10,fade:0})})});
+add("שבוע","שעון חול",function(){zone();bg(function(e,t){light("255,210,140",.26*ez(e,.8,1.2),Z.base-80*Z.sc);local(function(){groundShadow(56);var kf=ez(e,0,1.3),sand=Math.min(1,Math.max(0,(e-1.3)/50));
+  x.save();x.translate(0,-80);x.rotate(PI*(1-kf));
+  x.fillStyle="#9C6232";x.beginPath();x.roundRect(-48,-80,96,12,4);x.fill();x.beginPath();x.roundRect(-48,68,96,12,4);x.fill();x.fillStyle="#7A4A24";[-40,40].forEach(function(px){x.fillRect(px-3,-68,6,136)});
+  function bulbs(){x.beginPath();x.moveTo(-30,-68);x.lineTo(30,-68);x.bezierCurveTo(30,-30,6,-14,4,0);x.bezierCurveTo(6,14,30,30,30,68);x.lineTo(-30,68);x.bezierCurveTo(-30,30,-6,14,-4,0);x.bezierCurveTo(-6,-14,-30,-30,-30,-68);x.closePath()}
+  x.fillStyle="rgba(200,235,250,.35)";bulbs();x.fill();x.save();bulbs();x.clip();x.fillStyle="#E9B341";
+  var topH=50*(1-sand)*kf+(1-kf)*0,botH=8+48*sand*kf+(1-kf)*50;x.beginPath();x.moveTo(-30,-6-topH*.0);x.fillRect(-32,-6-topH,64,topH);
+  x.beginPath();x.moveTo(-32,68);x.lineTo(32,68);x.lineTo(32,68-botH*.55);x.quadraticCurveTo(0,68-botH*1.25,-32,68-botH*.55);x.closePath();x.fill();
+  if(kf>=1&&sand<1){x.fillRect(-1,-6,2,74-botH)}x.restore();x.strokeStyle="rgba(255,255,255,.7)";x.lineWidth=1.6;bulbs();x.stroke();x.fillStyle="rgba(255,255,255,.55)";x.beginPath();x.ellipse(-18,-40,3,14,.2,0,TAU);x.fill();x.restore()})})});
+add("שבוע","עפיפון",function(){zone();var cl=[[.1,.22,.9],[.7,.12,.7],[.55,.5,.8]];bg(function(e,t){light("120,200,255",.2*ez(e,.2,1.2),H*.3);cl.forEach(function(c,i){cloud(((c[0]*W+t*.01*(i+1))%(W+140))-90,c[1]*H,c[2],(isDark()?.25:.8)*ez(e,0,1))});
+  var k=ez(e,0,2),kx=Z.cx+60*Z.sc+Math.sin(t*.0013)*16,ky=Z.base-120*Z.sc+(1-k)*120+Math.sin(t*.0021)*10,ax=-10,ay=Z.base+16,rot=Math.sin(t*.0017)*.18;
+  x.save();x.strokeStyle=isDark()?"rgba(255,255,255,.5)":"rgba(0,32,63,.45)";x.lineWidth=1;x.beginPath();x.moveTo(ax,ay);x.quadraticCurveTo((ax+kx)/2-30,(ay+ky)/2+60,kx,ky+30*Z.sc);x.stroke();x.restore();
+  var tail=[];for(var i=0;i<14;i++)tail.push([kx-i*7*Z.sc+Math.sin(t*.004-i*.6)*8,ky+40*Z.sc+i*7*Z.sc]);x.save();x.strokeStyle="#00203F";x.lineWidth=1.4;x.beginPath();tail.forEach(function(p,i){i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1])});x.stroke();
+  tail.forEach(function(p,i){if(i%3!==2)return;x.save();x.translate(p[0],p[1]);x.fillStyle=["#FA1664","#FFC94A","#06B3E5","#7C5CFF"][i%4];x.beginPath();x.moveTo(-6,-4);x.lineTo(0,0);x.lineTo(-6,4);x.closePath();x.moveTo(6,-4);x.lineTo(0,0);x.lineTo(6,4);x.closePath();x.fill();x.restore()});x.restore();
+  x.save();x.translate(kx,ky);x.rotate(rot);x.scale(Z.sc,Z.sc);[["#06B3E5",0,-40,30,0,0,0],["#FA1664",0,-40,-30,0,0,0],["#FFC94A",30,0,0,44,0,0],["#00203F",-30,0,0,44,0,0]].forEach(function(q){x.fillStyle=q[0];x.beginPath();x.moveTo(0,0);x.lineTo(q[1],q[2]);x.lineTo(q[3],q[4]);x.closePath();x.fill()});
+  x.strokeStyle="rgba(255,255,255,.7)";x.lineWidth=1.4;x.beginPath();x.moveTo(0,-40);x.lineTo(0,44);x.moveTo(-30,0);x.lineTo(30,0);x.stroke();x.restore()})});
+
+/* ===== weekday round 2 ===== */
+/* נורה: החשמל יורד בחוט מלמעלה, ואז הנורה נדלקת ומאירה למטה */
+add("שבוע","נורה מהחוט",function(){zone();bg(function(e,t){var topY=-(Z.h+6)/Z.sc,kd=ez(e,.2,1.1),kl=ez(e,.6,1.2);light("255,210,110",.42*kl,Z.base-50*Z.sc);local(function(){var sway=Math.sin(t*.0011)*.07;x.save();x.translate(0,topY);x.rotate(sway);x.translate(0,-topY);
+    x.strokeStyle=isDark()?"#9AA4B2":"#00203F";x.lineWidth=2;x.beginPath();x.moveTo(0,topY);x.lineTo(0,-124);x.stroke();
+    if(false){var sy=topY+(-124-topY)*kd;x.save();x.globalCompositeOperation=S.add;var gp=x.createRadialGradient(0,sy,0,0,sy,18);gp.addColorStop(0,"rgba(255,240,180,.95)");gp.addColorStop(1,"rgba(255,200,90,0)");x.fillStyle=gp;x.beginPath();x.arc(0,sy,18,0,TAU);x.fill();x.restore();
+      var tr=x.createLinearGradient(0,sy-60,0,sy);tr.addColorStop(0,"rgba(255,214,120,0)");tr.addColorStop(1,"rgba(255,214,120,.9)");x.strokeStyle=tr;x.lineWidth=3;x.beginPath();x.moveTo(0,Math.max(topY,sy-60));x.lineTo(0,sy);x.stroke()}
+    x.fillStyle="#AEB8C4";x.beginPath();x.roundRect(-11,-128,22,26,3);x.fill();x.fillStyle="rgba(0,32,63,.25)";for(var r=0;r<4;r++)x.fillRect(-11,-124+r*6,22,1.6);
+    if(kl>0){x.save();x.globalCompositeOperation=S.add;
+      var g=x.createRadialGradient(0,-64,0,0,-64,110);g.addColorStop(0,"rgba(255,226,140,"+.7*kl+")");g.addColorStop(1,"rgba(255,200,90,0)");x.fillStyle=g;x.beginPath();x.arc(0,-64,110,0,TAU);x.fill();x.restore();
+      x.strokeStyle="rgba(255,200,90,"+.8*kl+")";x.lineWidth=3;x.lineCap="round";for(var i=0;i<9;i++){var a=.2+i*(PI-.4)/8,pl=.8+.2*Math.sin(t*.004+i);x.beginPath();x.moveTo(Math.cos(a)*50,-64+Math.sin(a)*50);x.lineTo(Math.cos(a)*(50+16*pl*kl),-64+Math.sin(a)*(50+16*pl*kl));x.stroke()}}
+    x.fillStyle=kl>0?"rgba(255,248,220,"+(.55+.4*kl)+")":"rgba(255,255,255,.55)";x.beginPath();x.moveTo(-12,-102);x.bezierCurveTo(-14,-92,-38,-84,-38,-60);x.arc(0,-60,38,PI,0,true);x.bezierCurveTo(38,-84,14,-92,12,-102);x.closePath();x.fill();
+    var fc=kl<=0?"#8A6A40":(kl<.5?"#FF9A2E":"#FFF4C8");x.strokeStyle=fc;x.lineWidth=2;x.beginPath();x.moveTo(-6,-100);x.lineTo(-8,-70);for(var z=0;z<6;z++)x.lineTo(-8+z*3.2,-70+(z%2?-6:0));x.lineTo(8,-70);x.lineTo(6,-100);x.stroke();
+    x.fillStyle="rgba(255,255,255,.7)";x.beginPath();x.ellipse(-20,-70,5,12,.4,0,TAU);x.fill();x.restore()})})});
+
+/* כדור פורח: מעטפת מעוגלת עם פלחים מוצללים, כתר, חצאית, סל קלוע, ושני כדורים רחוקים */
+function balloon(s,cols,t,burnOn){x.save();x.scale(s,s);
+  function hw(y){if(y<=-44)return Math.sqrt(Math.max(0,64*64-(y+44)*(y+44)));var u=(y+44)/84;return 64-(64-17)*(u*u*(3-2*u))}
+  function env(){x.beginPath();for(var y=-108;y<=40;y+=2)x.lineTo(hw(y),y);for(var y2=40;y2>=-108;y2-=2)x.lineTo(-hw(y2),y2);x.closePath()}
+  x.fillStyle="rgba(0,20,40,.12)";x.beginPath();x.ellipse(6,-36,62,72,0,0,TAU);x.fill();
+  x.save();env();x.clip();x.fillStyle=cols[0];x.fillRect(-70,-112,140,160);var n=10;for(var g=0;g<n;g++){var u0=-1+2*g/n,u1=-1+2*(g+1)/n;x.fillStyle=cols[g%cols.length];x.beginPath();for(var y=-110;y<=42;y+=2)x.lineTo(u0*hw(y),y);for(var y2=42;y2>=-110;y2-=2)x.lineTo(u1*hw(y2),y2);x.closePath();x.fill()}
+  var sh=x.createRadialGradient(-24,-72,6,0,-40,100);sh.addColorStop(0,"rgba(255,255,255,.45)");sh.addColorStop(.45,"rgba(255,255,255,0)");sh.addColorStop(1,"rgba(0,20,45,.32)");x.fillStyle=sh;x.fillRect(-70,-115,140,160);
+  x.fillStyle="#00203F";x.fillRect(-70,30,140,20);x.restore();
+  x.fillStyle="#E9B341";x.beginPath();x.ellipse(0,-108,12,3,0,0,TAU);x.fill();
+  x.strokeStyle="#6B4A2B";x.lineWidth=1.1;[[-18,40,-11,64],[18,40,11,64],[-7,42,-5,64],[7,42,5,64]].forEach(function(r){x.beginPath();x.moveTo(r[0],r[1]);x.lineTo(r[2],r[3]);x.stroke()});
+  x.fillStyle="#2F3540";x.fillRect(-9,54,18,4);
+  if(burnOn){x.save();x.globalCompositeOperation=S.add;var g=x.createRadialGradient(0,44,0,0,44,36);g.addColorStop(0,"rgba(255,180,80,.75)");g.addColorStop(1,"rgba(255,140,40,0)");x.fillStyle=g;x.beginPath();x.arc(0,44,36,0,TAU);x.fill();x.restore();var fh=14+Math.sin(t*.05)*3;x.fillStyle="#FF8A1F";x.beginPath();x.moveTo(0,52-fh);x.quadraticCurveTo(6,48,0,54);x.quadraticCurveTo(-6,48,0,52-fh);x.fill();x.fillStyle="#FFE68A";x.beginPath();x.moveTo(0,52-fh*.6);x.quadraticCurveTo(3,50,0,54);x.quadraticCurveTo(-3,50,0,52-fh*.6);x.fill()}
+  x.fillStyle="#B07A3E";x.beginPath();x.moveTo(-14,62);x.lineTo(14,62);x.lineTo(12,82);x.lineTo(-12,82);x.closePath();x.fill();x.strokeStyle="#8A5C2A";x.lineWidth=1;for(var w=0;w<4;w++){x.beginPath();x.moveTo(-13,66+w*4.5);x.lineTo(13,66+w*4.5);x.stroke()}for(var v=-2;v<=2;v++){x.beginPath();x.moveTo(v*5,62);x.lineTo(v*4.4,82);x.stroke()}
+  x.fillStyle="#7A4A24";x.beginPath();x.roundRect(-16,60,32,4,2);x.fill();x.restore()}
+add("שבוע","כדור פורח יפה",function(){zone();var cl=[[.05,.16,.8],[.7,.28,1],[.3,.62,.7],[.85,.6,.9]];bg(function(e,t){var sky=ez(e,0,1.6);x.save();var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,"rgba(255,190,140,"+.28*sky+")");g.addColorStop(.6,"rgba(150,210,255,"+.18*sky+")");g.addColorStop(1,"rgba(150,210,255,0)");x.fillStyle=g;x.fillRect(0,0,W,H);x.restore();
+  cl.forEach(function(c,i){cloud(((c[0]*W+t*.008*(i+1))%(W+140))-90,c[1]*H,c[2],(isDark()?.22:.85)*ez(e,0,1))});
+  var k2=ez(e,.6,4);x.save();x.translate(W*.14,H*.55-k2*H*.18);x.globalAlpha=.7;balloon(Z.sc*.28,["#FA1664","#FFC94A"],t,0);x.restore();x.save();x.translate(W*.86,H*.48-k2*H*.12);x.globalAlpha=.7;balloon(Z.sc*.22,["#7C5CFF","#FFFFFF"],t,0);x.restore();
+  var ku=ez(e,0,3.4),bx=Z.cx+Math.sin(t*.0009)*8,by=H+140-ku*(H+140-(Z.base-72*Z.sc));x.save();x.translate(bx,by);x.rotate(Math.sin(t*.0012)*.03);balloon(Z.sc*.78,["#06B3E5","#FFFFFF","#FA1664","#FFFFFF","#06B3E5","#FFC94A","#FFFFFF","#FA1664","#FFFFFF","#06B3E5"],t,(t%2600)<650);x.restore()})});
+
+/* תריסים בלי הפסים באלכסון: אור חם שמתמלא מלמעלה */
+add("שבוע","תריסים ואור",function(){zone();var n=16;for(var i=0;i<22;i++)part({x:rnd(0,W),y:rnd(0,H*.8),vx:rnd(-.08,.12),vy:rnd(-.05,.08),size:rnd(.8,1.8),col:"#FFF4D6",max:30,fade:0,fin:rnd(1.6,3),twk:rnd(2,5),glow:2.5,sway:.004});
+  bg(function(e,t){var ko=ez(e,.3,1.4),ku=ez(e,2.2,1.4),kr=ez(e,.8,1.6);x.save();x.globalCompositeOperation=S.add;var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,"rgba(255,226,170,"+.5*kr+")");g.addColorStop(.7,"rgba(255,226,170,"+.12*kr+")");g.addColorStop(1,"rgba(255,226,170,0)");x.fillStyle=g;x.fillRect(0,0,W,H);x.restore();
+    var sh=H/n;x.save();x.translate(0,-H*ku);for(var i=0;i<n;i++){var th=sh*(1-.86*ko),y=i*sh+(sh-th)/2;x.fillStyle=isDark()?"rgba(70,70,74,.92)":"rgba(246,242,234,.94)";x.fillRect(0,y,W,th);x.fillStyle="rgba(0,32,63,.08)";x.fillRect(0,y+th-1.5,W,1.5)}
+    x.strokeStyle="rgba(0,32,63,.25)";x.lineWidth=1;[W*.2,W*.8].forEach(function(cx){x.beginPath();x.moveTo(cx,0);x.lineTo(cx,H);x.stroke()});x.fillStyle=isDark()?"#555":"#E8E2D6";x.fillRect(0,H-10,W,10);x.restore();
+    local(function(){var kp=ez(e,1.2,.7);x.save();x.globalAlpha=kp;x.translate(0,(1-kp)*16);groundShadow(40);pot(0,0,1.25);x.fillStyle="#4E9A3E";x.beginPath();x.roundRect(-11,-110,22,66,11);x.fill();x.beginPath();x.roundRect(-34,-88,14,34,7);x.fill();x.beginPath();x.roundRect(20,-98,14,40,7);x.fill();
+      x.fillRect(-26,-60,16,8);x.fillRect(10,-64,16,8);x.strokeStyle="rgba(255,255,255,.35)";x.lineWidth=1.2;x.beginPath();x.moveTo(-3,-104);x.lineTo(-3,-50);x.moveTo(4,-104);x.lineTo(4,-50);x.stroke();
+      var kf=ez(e,2,.6);if(kf>0){x.save();x.translate(0,-112);x.scale(kf,kf);for(var p=0;p<6;p++){var a=p*TAU/6;x.fillStyle="#FA1664";x.beginPath();x.ellipse(Math.cos(a)*6,Math.sin(a)*6,6,3.4,a,0,TAU);x.fill()}x.fillStyle="#FFC94A";x.beginPath();x.arc(0,0,3.4,0,TAU);x.fill();x.restore()}x.restore()})})});
+
+/* רביעי: עריסת ניוטון */
+add("שבוע","עריסת ניוטון",function(){zone();bg(function(e,t){light("170,200,230",.24*ez(e,.3,1.2),Z.base-80*Z.sc);local(function(){var k=ez(e,0,.8);x.save();x.globalAlpha=k;groundShadow(100);
+  x.fillStyle="#2F3540";x.beginPath();x.roundRect(-100,-10,200,12,5);x.fill();x.strokeStyle="#AEB8C4";x.lineWidth=4;x.lineCap="round";x.beginPath();x.moveTo(-90,-8);x.lineTo(-90,-140);x.lineTo(90,-140);x.lineTo(90,-8);x.stroke();
+  var r=13,len=96,tt=Math.max(0,e-.8)*2.4,amp=.55*Math.exp(-Math.max(0,e-.8)*.02),ph=Math.sin(tt);
+  for(var i=0;i<5;i++){var px=(i-2)*r*2,a=0;if(i===0&&ph<0)a=ph*amp;if(i===4&&ph>0)a=ph*amp;var bx=px+Math.sin(a)*len,by=-140+Math.cos(a)*len;
+    x.strokeStyle=isDark()?"rgba(255,255,255,.45)":"rgba(0,32,63,.4)";x.lineWidth=1;x.beginPath();x.moveTo(px-8,-140);x.lineTo(bx,by);x.lineTo(px+8,-140);x.stroke();
+    var g=x.createRadialGradient(bx-4,by-5,1,bx,by,r);g.addColorStop(0,"#FFFFFF");g.addColorStop(.35,"#D9DEE5");g.addColorStop(1,"#6E7787");x.fillStyle=g;x.beginPath();x.arc(bx,by,r,0,TAU);x.fill();
+    if(false){x.save();x.globalCompositeOperation=S.add;x.fillStyle="rgba(127,221,247,.5)";x.beginPath();x.arc(i===0?bx+r:bx-r,by,8,0,TAU);x.fill();x.restore()}}x.restore()})})});
+
+/* רביעי: דג זהב בצנצנת */
+add("שבוע","דג זהב",function(){zone();var fx2=0,dir=1;bg(function(e,t){light("120,210,255",.24*ez(e,.3,1.2),Z.base-70*Z.sc);local(function(){var k=ez(e,0,.8);x.save();x.globalAlpha=k;groundShadow(76);
+  function bowl(){x.beginPath();x.moveTo(-36,-128);x.bezierCurveTo(-92,-110,-92,-6,-40,0);x.lineTo(40,0);x.bezierCurveTo(92,-6,92,-110,36,-128);x.closePath()}
+  x.save();bowl();x.clip();var wl=-104+Math.sin(t*.002)*2;var wg=x.createLinearGradient(0,wl,0,0);wg.addColorStop(0,"rgba(110,200,240,.55)");wg.addColorStop(1,"rgba(6,140,200,.6)");x.fillStyle=wg;x.beginPath();x.moveTo(-100,wl);for(var xx=-100;xx<=100;xx+=6)x.lineTo(xx,wl+Math.sin(xx*.08+t*.003)*2);x.lineTo(100,10);x.lineTo(-100,10);x.closePath();x.fill();
+    x.fillStyle="#E8C27A";x.beginPath();x.ellipse(0,-2,70,12,0,PI,0);x.fill();x.fillStyle="#3D8A3A";[[-34,-40],[-22,-56],[30,-46]].forEach(function(p,i){x.beginPath();x.moveTo(p[0],-6);x.quadraticCurveTo(p[0]+Math.sin(t*.002+i)*8,(p[1]-6)/2,p[0]+Math.sin(t*.002+i)*4,p[1]);x.lineWidth=5;x.strokeStyle="#3D8A3A";x.stroke()});
+    fx2+=.6*dir;if(fx2>40)dir=-1;if(fx2<-40)dir=1;var fy=-56+Math.sin(t*.0017)*10;x.save();x.translate(fx2,fy);x.scale(dir,1);var tw=Math.sin(t*.012)*.35;
+    x.fillStyle="#FF8A1F";x.beginPath();x.moveTo(-14,0);x.lineTo(-30,-12+tw*8);x.quadraticCurveTo(-26,0,-30,12+tw*8);x.closePath();x.fill();x.fillStyle="#FF9A2E";x.beginPath();x.ellipse(0,0,17,11,0,0,TAU);x.fill();x.fillStyle="#FFB64A";x.beginPath();x.moveTo(-2,-10);x.quadraticCurveTo(6,-20,10,-9);x.fill();
+    x.fillStyle="#FFFFFF";x.beginPath();x.arc(9,-3,3.4,0,TAU);x.fill();x.fillStyle="#00203F";x.beginPath();x.arc(10,-3,1.8,0,TAU);x.fill();x.restore();
+    if(R()<.05){var bx=fx2+dir*18;part({x:Z.cx+bx*Z.sc,y:Z.base+(fy-4)*Z.sc,vy:-.6,size:rnd(1.6,3),col:"rgba(255,255,255,.8)",shape:"ring",lw:1,max:1.4,fade:1,sway:.02})}x.restore();
+  x.save();bowl();x.clip();var rim=x.createRadialGradient(0,-64,40,0,-64,96);rim.addColorStop(0,"rgba(255,255,255,0)");rim.addColorStop(1,"rgba(255,255,255,.35)");x.fillStyle=rim;x.fillRect(-100,-140,200,150);x.restore();x.fillStyle="rgba(255,255,255,.35)";x.beginPath();x.ellipse(-54,-70,6,26,.25,0,TAU);x.fill();x.fillStyle="rgba(255,255,255,.45)";x.beginPath();x.ellipse(0,-128,38,4,0,0,TAU);x.fill();x.restore()})})});
+
+/* ===== seasons and more special days ===== */
+/* חורף, גשם: מטריה נפתחת */
+add("עונות","מטריה",function(){zone();var hits=[];bg(function(e,t){light("120,170,230",.22*ez(e,.2,1.2),Z.base-80*Z.sc);local(function(){groundShadow(80);var ko=ez(e,.5,1.1),sw=Math.sin(t*.0012)*.04;x.save();x.translate(0,-10);x.rotate(sw);
+  x.strokeStyle="#00203F";x.lineWidth=4;x.lineCap="round";x.beginPath();x.moveTo(0,-128);x.lineTo(0,-6);x.arc(-9,-6,9,0,PI);x.stroke();
+  var w=14+88*ko,h=20+30*ko,top=-150;var cols=["#06B3E5","#FFFFFF","#FA1664","#FFFFFF","#06B3E5","#FFFFFF"];
+  for(var i=0;i<6;i++){var a0=-w+i*(2*w/6),a1=a0+2*w/6;x.fillStyle=cols[i];x.beginPath();x.moveTo(0,top);x.quadraticCurveTo(a0*.55,top+h*.15,a0,top+h);x.quadraticCurveTo((a0+a1)/2,top+h-10*ko,a1,top+h);x.quadraticCurveTo(a1*.55,top+h*.15,0,top);x.closePath();x.fill()}
+  var gl=x.createLinearGradient(-w,0,w,0);gl.addColorStop(0,"rgba(0,32,63,.22)");gl.addColorStop(.4,"rgba(255,255,255,0)");gl.addColorStop(1,"rgba(0,32,63,.2)");x.fillStyle=gl;x.beginPath();x.moveTo(0,top);x.quadraticCurveTo(-w*.55,top+h*.15,-w,top+h);x.lineTo(w,top+h);x.quadraticCurveTo(w*.55,top+h*.15,0,top);x.fill();
+  x.fillStyle="#00203F";x.beginPath();x.arc(0,top-3,3.4,0,TAU);x.fill();x.restore();
+  if(ko>.9&&R()<.35){var hx=rnd(-90,90);hits.push({x:hx,y:-150+50*(1-Math.pow(hx/90,2))*0+(Math.abs(hx)/90)*48,l:1})}
+  x.save();hits.forEach(function(d){d.l-=.06;x.fillStyle="rgba(127,200,240,"+d.l+")";x.beginPath();x.arc(d.x-6*(1-d.l)*Math.sign(d.x),d.y-8*(1-d.l)+12*(1-d.l)*(1-d.l)*3,1.8,0,TAU);x.arc(d.x+5*(1-d.l)*Math.sign(d.x),d.y-6*(1-d.l),1.4,0,TAU);x.fill()});x.restore();hits=hits.filter(function(d){return d.l>0})})})});
+/* חורף, קר: ספל שוקו עם צעיף */
+add("עונות","שוקו חם",function(){zone();bg(function(e,t){light("255,180,120",.3*ez(e,.3,1.2),Z.base-60*Z.sc);local(function(){var k=ez(e,0,.7);x.save();x.globalAlpha=k;x.translate(0,(1-k)*14);groundShadow(80);
+  x.fillStyle="#E6E9EC";x.beginPath();x.ellipse(0,-2,64,9,0,0,TAU);x.fill();x.strokeStyle="#FA1664";x.lineWidth=9;x.beginPath();x.ellipse(40,-48,14,18,0,-1.4,1.4);x.stroke();
+  x.fillStyle="#FA1664";x.beginPath();x.roundRect(-40,-96,80,92,12);x.fill();x.fillStyle="rgba(255,255,255,.22)";x.fillRect(-32,-88,8,76);
+  x.fillStyle="#6B3A1E";x.beginPath();x.ellipse(0,-96,40,8,0,0,TAU);x.fill();x.fillStyle="#FFFFFF";[[-14,-98],[2,-100],[14,-96],[-4,-94]].forEach(function(m){x.beginPath();x.roundRect(m[0]-5,m[1]-4,10,8,3);x.fill()});
+  var sk=ez(e,.6,.8);x.save();x.beginPath();x.rect(-60,-80,120*sk,60);x.clip();for(var s2=0;s2<9;s2++){x.fillStyle=s2%2?"#06B3E5":"#FFFFFF";x.beginPath();x.moveTo(-48+s2*11,-70);x.lineTo(-37+s2*11,-70);x.lineTo(-40+s2*11,-44);x.lineTo(-51+s2*11,-44);x.closePath();x.fill()}
+  x.fillStyle="#06B3E5";x.beginPath();x.roundRect(30,-54,14,40,4);x.fill();x.fillStyle="#FFFFFF";for(var f=0;f<4;f++)x.fillRect(32+f*3,-14,1.6,8);x.restore();
+  x.strokeStyle=isDark()?"rgba(255,255,255,.35)":"rgba(0,32,63,.22)";x.lineWidth=3;x.lineCap="round";for(var s3=0;s3<3;s3++){var ph=((t*.0005+s3*.33)%1);x.globalAlpha=k*Math.sin(ph*PI);x.beginPath();for(var j=0;j<=12;j++){var yy=-110-ph*36-j*3,xx=(s3-1)*14+Math.sin(j*.7+t*.003+s3)*5;j?x.lineTo(xx,yy):x.moveTo(xx,yy)}x.stroke()}x.restore()})})});
+/* קיץ, חמישי: חוף ים */
+add("עונות","חוף ים",function(){zone();var foam=[];bg(function(e,t){light("255,200,120",.3*ez(e,.2,1.2),Z.top);var k=ez(e,0,1.2),hz=Z.base-62*Z.sc,sand=Z.base-18*Z.sc;
+  x.save();x.globalAlpha=k;var sg=x.createLinearGradient(0,hz,0,sand);sg.addColorStop(0,"#0A8FC6");sg.addColorStop(1,"#5FD0F2");x.fillStyle=sg;x.fillRect(0,hz,W,sand-hz+6);
+  x.fillStyle="#FFFFFF";for(var f=0;f<3;f++){x.globalAlpha=k*(.5+.3*Math.sin(t*.002+f));x.beginPath();for(var xx=0;xx<=W;xx+=6)x.lineTo(xx,sand-2+f*0+Math.sin(xx*.05+t*.003+f*2)*2.5-(f*7));x.lineTo(W,sand-6-f*7);x.lineTo(0,sand-6-f*7);x.closePath();x.fill()}
+  x.globalAlpha=k;x.fillStyle="#F2D6A2";x.fillRect(0,sand,W,Z.base+20-sand);x.fillStyle="rgba(200,150,80,.25)";for(var d=0;d<40;d++){x.beginPath();x.arc(hsh(d)*W,sand+4+hsh(d+3)*20,1.2,0,TAU);x.fill()}x.restore();
+  local(function(){var ku=ez(e,.5,.7);x.save();x.translate(-34,0);x.globalAlpha=ku;x.strokeStyle="#F3F5F7";x.lineWidth=3;x.beginPath();x.moveTo(0,8);x.lineTo(6,-110);x.stroke();
+    var cols=["#FA1664","#FFFFFF","#06B3E5","#FFFFFF","#FA1664"];x.save();x.translate(6,-112);x.rotate(.08);for(var i=0;i<5;i++){var a0=-64+i*25.6,a1=a0+25.6;x.fillStyle=cols[i];x.beginPath();x.moveTo(0,-12);x.lineTo(a0,14);x.quadraticCurveTo((a0+a1)/2,8,a1,14);x.closePath();x.fill()}x.restore();x.restore();
+    var kc=ez(e,.8,.6);x.save();x.translate(48,0);x.globalAlpha=kc;x.strokeStyle="#9C6232";x.lineWidth=3;x.beginPath();x.moveTo(-26,4);x.lineTo(10,-40);x.moveTo(20,4);x.lineTo(-6,-22);x.stroke();
+    x.fillStyle="#06B3E5";x.beginPath();x.moveTo(-22,-2);x.lineTo(-2,-28);x.lineTo(8,-36);x.lineTo(12,-30);x.lineTo(2,-22);x.lineTo(16,-2);x.closePath();x.fill();x.fillStyle="#FFFFFF";x.beginPath();x.moveTo(-14,-4);x.lineTo(0,-24);x.lineTo(4,-20);x.lineTo(-8,-4);x.closePath();x.fill();x.restore();
+    var kb=ez(e,1.1,.5);x.save();x.translate(96,-6);x.scale(kb,kb);x.fillStyle="#FFC94A";x.beginPath();x.arc(0,0,9,0,TAU);x.fill();x.fillStyle="#FA1664";x.beginPath();x.arc(0,0,9,-.5,1);x.lineTo(0,0);x.fill();x.fillStyle="#06B3E5";x.beginPath();x.arc(0,0,9,2,3.4);x.lineTo(0,0);x.fill();x.restore()})})});
+/* סתיו: עץ בשלכת */
+add("עונות","עץ בשלכת",function(){zone();var LV=[];for(var i=0;i<46;i++){var a=rnd(0,TAU),r=Math.sqrt(R())*44;LV.push([Math.cos(a)*r*1.2,-110+Math.sin(a)*r*.85,pick(PAL.AUTUMN),rnd(5,8),R()])}
+  bg(function(e,t){light("240,140,60",.24*ez(e,.3,1.2),Z.base-90*Z.sc);local(function(){groundShadow(80);x.fillStyle="#6B4A33";x.beginPath();x.moveTo(-8,0);x.lineTo(8,0);x.lineTo(5,-70);x.lineTo(-5,-70);x.closePath();x.fill();
+    x.strokeStyle="#6B4A33";x.lineCap="round";x.lineWidth=5;x.beginPath();x.moveTo(0,-62);x.lineTo(-26,-96);x.moveTo(0,-66);x.lineTo(24,-102);x.moveTo(0,-70);x.lineTo(2,-120);x.stroke();
+    var kg=ez(e,0,1);LV.forEach(function(l,i){var drop=e>1.2&&l[4]<Math.min(.45,(e-1.2)*.06);if(drop)return;var s=l[3]*kg;x.save();x.translate(l[0]+Math.sin(t*.0012+i)*1.2,l[1]);x.rotate(i);x.fillStyle=l[2];x.beginPath();x.moveTo(0,-s);x.quadraticCurveTo(s*.8,-s*.2,0,s);x.quadraticCurveTo(-s*.8,-s*.2,0,-s);x.fill();x.restore()});
+    for(var p=0;p<14;p++){var kp=ez(e,1.6+p*.15,.6);if(kp<=0)continue;x.save();x.translate(-60+hsh(p)*120,-2-hsh(p+7)*4);x.rotate(hsh(p)*6);x.scale(kp,kp);x.fillStyle=PAL.AUTUMN[p%5];x.beginPath();x.moveTo(0,-6);x.quadraticCurveTo(5,-1,0,6);x.quadraticCurveTo(-5,-1,0,-6);x.fill();x.restore()}});
+    if(e>1.2&&R()<.08)part({x:Z.cx+rnd(-50,50)*Z.sc,y:Z.base-rnd(90,140)*Z.sc,vx:rnd(-.4,.4),vy:rnd(.5,.9),size:rnd(5,7),col:pick(PAL.AUTUMN),shape:"leaf",rot:rnd(0,TAU),vr:rnd(-.05,.05),flip:rnd(0,TAU),vf:rnd(.05,.1),sway:.04,swf:.04,max:5,fade:1})})});
+/* אביב: פרחי בר ופרפרים */
+add("עונות","פרחי בר",function(){zone();var F=[];for(var i=0;i<16;i++)F.push([-120+i*16+rnd(-5,5),rnd(30,80),pick(["#FA1664","#FFC94A","#FFFFFF","#7C5CFF","#FF7BA8"]),rnd(.2,1.6)]);for(var b=0;b<5;b++)part({x:rnd(0,W),y:Z.base-rnd(60,150)*Z.sc,vx:rnd(-.5,.5),vy:rnd(-.3,.3),size:rnd(7,10),col:pick(["#FA1664","#06B3E5","#FFC94A","#7C5CFF"]),shape:"fly",sway:.05,swf:.05,max:30,fade:0,fin:rnd(1,2.5),kill:0,upd:function(q){q.rot=Math.atan2(q.vy,q.vx)+PI/2;if(q.x<10)q.vx=Math.abs(q.vx);if(q.x>W-10)q.vx=-Math.abs(q.vx);if(q.y<Z.top+20)q.vy=Math.abs(q.vy);if(q.y>Z.base-20)q.vy=-Math.abs(q.vy)}});
+  bg(function(e,t){light("200,240,150",.2*ez(e,.3,1.2),Z.base-60*Z.sc);local(function(){x.fillStyle="#7CC46A";x.beginPath();x.ellipse(0,4,150,12,0,PI,0);x.fill();
+    F.forEach(function(f,i){var k=ez(e,f[3],.6);if(k<=0)return;var h=f[1]*k,sw=Math.sin(t*.002+i)*4;x.strokeStyle="#3D8A3A";x.lineWidth=2;x.beginPath();x.moveTo(f[0],0);x.quadraticCurveTo(f[0],-h/2,f[0]+sw,-h);x.stroke();
+      var kb=ez(e,f[3]+.4,.4);if(kb<=0)return;x.save();x.translate(f[0]+sw,-h);x.scale(kb,kb);for(var p=0;p<5;p++){var a=p*TAU/5;x.fillStyle=f[2];x.beginPath();x.ellipse(Math.cos(a)*5,Math.sin(a)*5,5,3,a,0,TAU);x.fill()}x.fillStyle="#FFC94A";x.beginPath();x.arc(0,0,2.6,0,TAU);x.fill();x.restore()})})})});
+/* יום ירושלים: חומות באור זהב */
+add("ימים מיוחדים","חומות ירושלים",function(){zone();bg(function(e,t){var kl=ez(e,.6,1.6);light("255,190,90",.42*kl,Z.base-60*Z.sc);local(function(){var k=ez(e,0,1);x.save();x.globalAlpha=k;groundShadow(130);
+  var st=x.createLinearGradient(0,-120,0,0);st.addColorStop(0,"#F2D8A6");st.addColorStop(1,"#D9B77A");x.fillStyle=st;x.fillRect(-140,-62,280,62);for(var c=0;c<14;c++){x.fillRect(-140+c*20,-72,12,10)}
+  x.fillStyle="#E8C88E";x.fillRect(-120,-130,46,130);for(var c2=0;c2<3;c2++)x.fillRect(-120+c2*17,-140,12,10);x.fillStyle="#C9A15E";x.beginPath();x.roundRect(-104,-112,8,16,[4,4,0,0]);x.fill();x.beginPath();x.roundRect(-104,-80,8,16,[4,4,0,0]);x.fill();
+  x.fillStyle="#E8C88E";x.fillRect(-24,-96,48,96);x.fillStyle="#7A5A2E";x.beginPath();x.moveTo(-14,0);x.lineTo(-14,-40);x.arc(0,-40,14,PI,0);x.lineTo(14,0);x.closePath();x.fill();for(var c3=0;c3<3;c3++){x.fillStyle="#E8C88E";x.fillRect(-24+c3*18,-106,12,10)}
+  x.strokeStyle="rgba(150,110,50,.28)";x.lineWidth=1;for(var r=0;r<6;r++){x.beginPath();x.moveTo(-140,-10*r-6);x.lineTo(140,-10*r-6);x.stroke()}for(var b=0;b<40;b++){var bx=-140+(b%14)*20+((Math.floor(b/14))%2)*10,by=-6-Math.floor(b/14)*10;x.beginPath();x.moveTo(bx,by);x.lineTo(bx,by-10);x.stroke()}
+  x.save();x.globalCompositeOperation=S.add;var g=x.createLinearGradient(-140,0,140,0);g.addColorStop(0,"rgba(255,200,90,"+.25*kl+")");g.addColorStop(1,"rgba(255,200,90,0)");x.fillStyle=g;x.fillRect(-140,-140,280,140);x.restore();x.restore()});
+  if(e>1.6&&R()<.012)part({x:-20,y:Z.top+rnd(0,40),vx:rnd(1,1.5),size:7,col:isDark()?"#E6E9EC":"#00203F",shape:"bird",max:10,fade:0})})});
+/* ט״ו באב: ירח מלא ולבבות */
+add("ימים מיוחדים","ירח ולבבות",function(){zone();bg(function(e,t){var k=ez(e,0,1.6);x.save();var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,"rgba(30,30,80,"+.28*k+")");g.addColorStop(1,"rgba(250,22,100,"+.06*k+")");x.fillStyle=g;x.fillRect(0,0,W,H);x.restore();
+  local(function(){var my=-90-30*k;x.save();x.globalCompositeOperation=S.add;var gl=x.createRadialGradient(0,my,0,0,my,110);gl.addColorStop(0,"rgba(255,240,210,.55)");gl.addColorStop(1,"rgba(255,240,210,0)");x.fillStyle=gl;x.beginPath();x.arc(0,my,110,0,TAU);x.fill();x.restore();
+    var mg=x.createRadialGradient(-12,my-12,6,0,my,48);mg.addColorStop(0,"#FFFBEE");mg.addColorStop(1,"#F2E2B8");x.fillStyle=mg;x.beginPath();x.arc(0,my,48,0,TAU);x.fill();x.fillStyle="rgba(200,180,140,.35)";[[-14,-8,8],[12,10,6],[18,-16,4]].forEach(function(c){x.beginPath();x.arc(c[0],my+c[1],c[2],0,TAU);x.fill()})});
+  if(e>1.2&&R()<.05)part({x:Z.cx+rnd(-110,110)*Z.sc,y:Z.base+10,vy:-rnd(.5,1),size:rnd(5,9),col:pick(["#FA1664","#FF7BA8","#FFC2D6"]),shape:"heart",sway:.02,rot:rnd(-.3,.3),max:5,fade:1})})});
+/* מעבר שעון: השעון עצמו זז שעה */
+add("ימים מיוחדים","מעבר שעון",function(){zone();var dir=window.__dst||1;bg(function(e,t){light("6,179,229",.2*ez(e,.2,1),Z.base-80*Z.sc);local(function(){var k=ez(e,0,.7);x.save();x.globalAlpha=k;groundShadow(60);var cy=-82,r=66;
+  x.fillStyle="rgba(0,20,40,.12)";x.beginPath();x.arc(4,cy+4,r+6,0,TAU);x.fill();x.fillStyle="#00203F";x.beginPath();x.arc(0,cy,r+6,0,TAU);x.fill();x.fillStyle="#FFFFFF";x.beginPath();x.arc(0,cy,r,0,TAU);x.fill();
+  for(var i=0;i<12;i++){var a=i*TAU/12;x.fillStyle=i%3?"#AEB8C4":"#00203F";x.beginPath();x.arc(Math.sin(a)*(r-10),cy-Math.cos(a)*(r-10),i%3?2:3.4,0,TAU);x.fill()}
+  var p=ez(e,.8,2.2),hr=2+dir*p,mn=dir*p*60;var ha=hr/12*TAU,ma=mn/60*TAU;
+  x.strokeStyle="rgba(6,179,229,"+.35*Math.min(1,p*3)*(1-ez(e,3.2,.8))+")";x.lineWidth=8;x.lineCap="round";x.beginPath();x.arc(0,cy,r-18,-PI/2+2/12*TAU,-PI/2+ha,dir<0);x.stroke();
+  x.strokeStyle="#00203F";x.lineWidth=6;x.beginPath();x.moveTo(0,cy);x.lineTo(Math.sin(ha)*30,cy-Math.cos(ha)*30);x.stroke();x.lineWidth=4;x.beginPath();x.moveTo(0,cy);x.lineTo(Math.sin(ma)*48,cy-Math.cos(ma)*48);x.stroke();
+  x.fillStyle="#FA1664";x.beginPath();x.arc(0,cy,5,0,TAU);x.fill();
+  var kt=ez(e,2.6,.6);if(kt>0){x.globalAlpha=k*kt;x.fillStyle="#06B3E5";x.beginPath();x.roundRect(46,cy-r-10,46,26,13);x.fill();x.fillStyle="#FFFFFF";x.font="800 14px "+getComputedStyle(document.body).fontFamily;x.textAlign="center";x.textBaseline="middle";x.fillText(dir>0?"+1":"−1",69,cy-r+3)}x.restore()})})});
+/* מימונה: מופלטה עם דבש */
+add("ימים מיוחדים","מופלטות",function(){zone();bg(function(e,t){light("255,200,110",.3*ez(e,.6,1.2),Z.base-60*Z.sc);local(function(){groundShadow(90);x.fillStyle="#E6E9EC";x.beginPath();x.ellipse(0,-2,80,11,0,0,TAU);x.fill();x.fillStyle="#C9CFD6";x.beginPath();x.ellipse(0,-3,58,7,0,0,TAU);x.fill();
+  for(var i=0;i<6;i++){var k=ez(e,i*.18,.45);if(k<=0)continue;var y=-8-i*9-(1-k)*30;x.save();x.globalAlpha=k;x.fillStyle="#F3D6A0";x.beginPath();x.ellipse(Math.sin(i*1.7)*3,y,52,8,0,0,TAU);x.fill();x.fillStyle="rgba(200,140,60,.45)";for(var s=0;s<6;s++){x.beginPath();x.ellipse(-36+s*14+Math.sin(i+s)*3,y-1,5,2,0,0,TAU);x.fill()}x.restore()}
+  var kh=ez(e,1.4,1.2);if(kh>0){var ty=-62;x.fillStyle="#F5A623";x.beginPath();x.ellipse(0,ty,40*kh,6*kh,0,0,TAU);x.fill();[-30,-12,8,26].forEach(function(dx,i){var len=(10+i%2*10)*Math.min(1,kh*1.4);x.beginPath();x.moveTo(dx-3,ty);x.quadraticCurveTo(dx,ty+len+4,dx+3,ty);x.fill();x.beginPath();x.arc(dx,ty+len,3,0,TAU);x.fill()})}
+  var kj=ez(e,1,.5);x.save();x.translate(84,-8);x.scale(kj,kj);x.fillStyle="#F5A623";x.beginPath();x.roundRect(-12,-26,24,26,6);x.fill();x.fillStyle="#FFFFFF";x.beginPath();x.roundRect(-9,-16,18,9,3);x.fill();x.fillStyle="#C21F3A";x.beginPath();x.roundRect(-13,-32,26,7,3);x.fill();x.restore()})})});
+/* יום בונוס: 29 בפברואר */
+add("ימים מיוחדים","דף 29",function(){zone();bg(function(e,t){light("250,22,100",.16*ez(e,.3,1),Z.base-80*Z.sc);local(function(){var k=ez(e,0,.6);x.save();x.globalAlpha=k;groundShadow(60);
+  x.fillStyle="#FFFFFF";x.beginPath();x.roundRect(-56,-136,112,128,10);x.fill();x.fillStyle="#FA1664";x.beginPath();x.roundRect(-56,-136,112,30,[10,10,0,0]);x.fill();x.fillStyle="#FFFFFF";x.font="700 13px "+getComputedStyle(document.body).fontFamily;x.textAlign="center";x.textBaseline="middle";x.fillText("פברואר",0,-121);
+  var flip=ez(e,.8,1.1);x.fillStyle="#00203F";x.font="800 54px "+getComputedStyle(document.body).fontFamily;x.fillText(flip<.5?"28":"29",0,-60);
+  if(flip>0&&flip<1){x.save();var h=104*(1-flip);x.fillStyle="#F3F5F7";x.beginPath();x.moveTo(-56,-106);x.lineTo(56,-106);x.lineTo(56-8*Math.sin(flip*PI),-106+h);x.lineTo(-56+8*Math.sin(flip*PI),-106+h);x.closePath();x.fill();x.restore()}
+  x.fillStyle="#AEB8C4";[-30,30].forEach(function(px){x.beginPath();x.roundRect(px-4,-146,8,18,4);x.fill()});
+  var kb=ez(e,2,.5);if(kb>0){x.save();x.translate(58,-138);x.scale(kb,kb);x.rotate(.2);x.fillStyle="#FFC94A";x.beginPath();x.roundRect(-26,-12,52,24,12);x.fill();x.fillStyle="#00203F";x.font="800 12px "+getComputedStyle(document.body).fontFamily;x.textAlign="center";x.textBaseline="middle";x.fillText("בונוס",0,1);x.restore()}x.restore()})})});
+
+/* ===== round 5 ===== */
+function honeyDrop(cx,top,w,L){var r=w*.42,neck=w*.26+Math.max(0,1-L/100)*w*.12,g=x.createLinearGradient(0,top,0,top+L+r);g.addColorStop(0,"#E58A0F");g.addColorStop(1,"#FFC24A");x.fillStyle=g;x.beginPath();x.moveTo(cx-w*.9,top-2);
+  x.bezierCurveTo(cx-w*.45,top,cx-neck,top+6,cx-neck,top+L*.6);x.bezierCurveTo(cx-neck,top+L*.85,cx-r,top+L-r*.4,cx-r,top+L);x.arc(cx,top+L,r,PI,0,true);x.bezierCurveTo(cx+r,top+L-r*.4,cx+neck,top+L*.85,cx+neck,top+L*.6);x.bezierCurveTo(cx+neck,top+6,cx+w*.45,top,cx+w*.9,top-2);x.closePath();x.fill();
+  x.fillStyle="rgba(255,255,255,.55)";x.beginPath();x.ellipse(cx-r*.38,top+L-r*.15,r*.18,r*.34,-.2,0,TAU);x.fill()}
+/* דבש בפינות */
+add("סביבה","דבש בפינות",function(){zone();var D=[{x:.03,w:24,L:30,m:90,s:.2},{x:.12,w:16,L:14,m:50,s:.14},{x:.2,w:11,L:6,m:28,s:.1},{x:.97,w:22,L:24,m:80,s:.18},{x:.88,w:15,L:10,m:44,s:.12},{x:.8,w:10,L:4,m:24,s:.09}];
+  bg(function(e,t){var k=ez(e,0,1.2);x.save();x.globalAlpha=k;
+    [[0,1],[W,-1]].forEach(function(c){var g=x.createRadialGradient(c[0],0,0,c[0],0,W*.32);g.addColorStop(0,"#E58A0F");g.addColorStop(.75,"#F5A623");g.addColorStop(1,"#F7B33A");x.fillStyle=g;x.beginPath();x.moveTo(c[0],0);x.lineTo(c[0]+c[1]*W*.3,0);
+      for(var a=0;a<=20;a++){var u=a/20,xx=c[0]+c[1]*W*.3*(1-u),yy=Math.sin(u*PI/2)*W*.12*(1-u*.25)+Math.sin(u*9+t*.001)*1.5;x.lineTo(xx,yy*(1-u)+u*W*.13)}x.lineTo(c[0],0);x.closePath();x.fill()});
+    D.forEach(function(d){d.L+=d.s*(1+.5*Math.sin(t*.001+d.x*30));if(d.L>d.m){part({x:d.x*W,y:W*.06+d.L,vy:1,g:.22,size:d.w*.32,col:"#F5A623",shape:"hdrop",max:4,fade:0});d.L=d.m*.4}var top=d.x<.5?W*(.13-d.x*.5):W*(.13-(1-d.x)*.5);honeyDrop(d.x*W,Math.max(4,top),d.w,d.L*k)});
+    x.fillStyle="rgba(255,255,255,.35)";x.beginPath();x.ellipse(W*.06,W*.03,W*.05,4,.3,0,TAU);x.ellipse(W*.94,W*.03,W*.05,4,-.3,0,TAU);x.fill();x.restore()})});
+/* דבש עדין */
+add("סביבה","דבש עדין",function(){zone();var D=[];for(var i=0;i<7;i++)D.push({x:(i+.5)/7+rnd(-.03,.03),w:rnd(9,14),L:rnd(4,12),m:rnd(26,54),s:rnd(.06,.14)});
+  bg(function(e,t){var k=ez(e,0,1.2);x.save();x.globalAlpha=.85*k;var g=x.createLinearGradient(0,0,0,10);g.addColorStop(0,"rgba(229,138,15,.9)");g.addColorStop(1,"rgba(255,194,74,.75)");x.fillStyle=g;x.beginPath();x.moveTo(0,0);x.lineTo(W,0);for(var xx=W;xx>=0;xx-=6)x.lineTo(xx,7+Math.sin(xx*.05+t*.0008)*1.5);x.closePath();x.fill();
+    D.forEach(function(d){d.L+=d.s;if(d.L>d.m){part({x:d.x*W,y:8+d.L,vy:.8,g:.2,size:d.w*.3,col:"#F5A623",shape:"hdrop",max:4,fade:0});d.L=4}honeyDrop(d.x*W,6,d.w,d.L*k)});x.restore()})});
+/* חלת דבש בפינות */
+add("סביבה","חלת דבש",function(){zone();var cells=[];[[0,1],[1,-1]].forEach(function(c){for(var r=0;r<5;r++)for(var q=0;q<5;q++){if(r+q>5)continue;var s=15,hx=(q*s*1.73+(r%2)*s*.87),hy=r*s*1.5;cells.push({x:c[0]?W-hx:hx,y:hy,f:R()<.65,d:R()<.25&&r+q>=3,L:rnd(4,10),m:rnd(30,60)})}});
+  bg(function(e,t){x.save();cells.forEach(function(c,i){var k=ez(e,i*.025,.5);if(k<=0)return;x.save();x.translate(c.x,c.y);x.scale(k,k);x.beginPath();for(var v=0;v<6;v++){var a=v*PI/3+PI/6;x.lineTo(Math.cos(a)*14,Math.sin(a)*14)}x.closePath();
+    x.fillStyle="#E9B341";x.fill();if(c.f){x.beginPath();for(var v2=0;v2<6;v2++){var a2=v2*PI/3+PI/6;x.lineTo(Math.cos(a2)*11,Math.sin(a2)*11)}x.closePath();var g=x.createRadialGradient(-3,-3,1,0,0,12);g.addColorStop(0,"#FFD67A");g.addColorStop(1,"#E58A0F");x.fillStyle=g;x.fill();x.fillStyle="rgba(255,255,255,.5)";x.beginPath();x.ellipse(-4,-4,3,1.6,-.6,0,TAU);x.fill()}
+    else{x.beginPath();for(var v3=0;v3<6;v3++){var a3=v3*PI/3+PI/6;x.lineTo(Math.cos(a3)*11,Math.sin(a3)*11)}x.closePath();x.fillStyle="#F7DFA0";x.fill()}x.restore();
+    if(c.d&&k>=1){c.L+=.12;if(c.L>c.m){part({x:c.x,y:c.y+10+c.L,vy:.8,g:.2,size:3.4,col:"#F5A623",shape:"hdrop",max:4,fade:0});c.L=4}honeyDrop(c.x,c.y+8,10,c.L)}});x.restore()})});
+
+/* תשעה באב: נר גדול ומסוגנן על רקע אבנים עתיקות */
+add("חגים","נר תשעה באב",function(){zone();var ST=[];for(var r=0;r<6;r++)for(var c=0;c<8;c++)ST.push([-160+c*40+(r%2)*20,-156+r*26,36+hsh(r*9+c)*8,22,hsh(r*3+c*7)]);
+  bg(function(e,t){var kw=ez(e,0,2),kl=ez(e,1.2,1.4);light("255,190,110",.26*kl,Z.base-60*Z.sc);local(function(){
+    x.save();ST.forEach(function(s){var d=Math.hypot(s[0]+s[2]/2,(s[1]+s[3]/2+70)*1.3),fa=Math.max(0,1-d/150);if(fa<=0)return;x.globalAlpha=.6*kw*fa*fa;x.fillStyle=isDark()?"#8F826C":"#D9CBAE";x.beginPath();x.roundRect(s[0],s[1],s[2],s[3],4);x.fill()});x.restore();
+    var k=ez(e,.3,1);x.save();x.globalAlpha=k;groundShadow(46,.14);x.scale(1.45,1.45);
+    var gl=x.createLinearGradient(-22,0,22,0);gl.addColorStop(0,"rgba(255,255,255,.35)");gl.addColorStop(.3,"rgba(255,255,255,.75)");gl.addColorStop(1,"rgba(200,210,220,.4)");x.fillStyle=gl;x.beginPath();x.roundRect(-22,-72,44,72,7);x.fill();
+    x.fillStyle="#F6F1E6";x.beginPath();x.roundRect(-19,-46,38,43,5);x.fill();x.fillStyle="rgba(200,180,140,.35)";x.fillRect(-19,-46,38,5);x.fillStyle="rgba(255,255,255,.7)";x.fillRect(-15,-66,4,60);
+    x.strokeStyle="#3A2A1A";x.lineWidth=1.4;x.beginPath();x.moveTo(0,-46);x.lineTo(0,-51);x.stroke();
+    if(kl>0){x.save();x.globalCompositeOperation=S.add;for(var h=0;h<3;h++){var R2=40+h*28+Math.sin(t*.002+h)*3;var g2=x.createRadialGradient(0,-58,0,0,-58,R2);g2.addColorStop(0,"rgba(255,210,130,"+(.22-h*.06)*kl+")");g2.addColorStop(1,"rgba(255,190,100,0)");x.fillStyle=g2;x.beginPath();x.arc(0,-58,R2,0,TAU);x.fill()}x.restore();
+      flameAt(0,-50,flick(t,0)*1.1*kl,t,0)}x.restore()})})});
+
+/* מימונה עשירה */
+add("ימים מיוחדים","שולחן מימונה",function(){zone();bg(function(e,t){light("255,200,110",.32*ez(e,.6,1.2),Z.base-70*Z.sc);local(function(){
+  var kc=ez(e,0,.6);x.save();x.globalAlpha=kc;x.fillStyle="#FFFFFF";x.beginPath();x.moveTo(-150,4);x.lineTo(150,4);x.lineTo(130,-18);x.lineTo(-130,-18);x.closePath();x.fill();x.fillStyle="#C21F3A";for(var b=0;b<26;b++){x.beginPath();x.moveTo(-150+b*11.6,4);x.lineTo(-144+b*11.6,-4);x.lineTo(-138+b*11.6,4);x.fill()}
+  x.strokeStyle="#E9B341";x.lineWidth=2;x.beginPath();x.moveTo(-140,-6);x.lineTo(140,-6);x.stroke();x.restore();
+  var kv=ez(e,.3,.6);x.save();x.translate(-96,-12);x.scale(kv,kv);x.lineCap="round";for(var w=0;w<7;w++){var a=-PI/2+(w-3)*.16;x.strokeStyle="#C9A24A";x.lineWidth=1.6;x.beginPath();x.moveTo(0,-30);x.lineTo(Math.cos(a)*86,-30+Math.sin(a)*86);x.stroke();x.save();x.translate(Math.cos(a)*86,-30+Math.sin(a)*86);x.rotate(a+PI/2);for(var g=0;g<4;g++){x.fillStyle="#E9B341";x.beginPath();x.ellipse(-2.4,-g*4,2.4,3.4,-.4,0,TAU);x.fill();x.beginPath();x.ellipse(2.4,-g*4,2.4,3.4,.4,0,TAU);x.fill()}x.restore()}
+    [[-20,-96,"#FA1664"],[16,-104,"#FFFFFF"],[-4,-110,"#FFC94A"],[26,-86,"#FA1664"]].forEach(function(f){x.save();x.translate(f[0],f[1]);for(var p=0;p<5;p++){var a2=p*TAU/5;x.fillStyle=f[2];x.beginPath();x.ellipse(Math.cos(a2)*5,Math.sin(a2)*5,5,3.2,a2,0,TAU);x.fill()}x.fillStyle="#FFC94A";x.beginPath();x.arc(0,0,2.4,0,TAU);x.fill();x.restore()});
+    x.fillStyle="#06B3E5";x.beginPath();x.moveTo(-16,-36);x.lineTo(16,-36);x.lineTo(12,0);x.lineTo(-12,0);x.closePath();x.fill();x.fillStyle="#E9B341";x.fillRect(-16,-30,32,4);x.restore();
+  x.fillStyle="#E6E9EC";x.beginPath();x.ellipse(10,-14,64,10,0,0,TAU);x.fill();x.fillStyle="#C9CFD6";x.beginPath();x.ellipse(10,-15,46,6,0,0,TAU);x.fill();
+  for(var i=0;i<7;i++){var k=ez(e,.4+i*.15,.45);if(k<=0)continue;var y=-20-i*7.5-(1-k)*30;x.save();x.globalAlpha=k;var mg=x.createLinearGradient(0,y-6,0,y+6);mg.addColorStop(0,"#F7DDAA");mg.addColorStop(1,"#E2B66E");x.fillStyle=mg;x.beginPath();x.ellipse(10+Math.sin(i*1.7)*3,y,44,6.4,0,0,TAU);x.fill();x.fillStyle="rgba(190,120,40,.45)";for(var s=0;s<6;s++){x.beginPath();x.ellipse(-20+s*12+Math.sin(i+s)*3,y-1,4,1.6,0,0,TAU);x.fill()}x.restore()}
+  var kh=ez(e,1.8,1.2);if(kh>0){var ty=-74;x.fillStyle="#F5A623";x.beginPath();x.ellipse(10,ty,32*kh,5*kh,0,0,TAU);x.fill();[-14,2,18,30].forEach(function(dx,i){var len=(8+i%2*10)*Math.min(1,kh*1.4);x.beginPath();x.moveTo(10+dx-3,ty);x.quadraticCurveTo(10+dx,ty+len+4,10+dx+3,ty);x.fill();x.beginPath();x.arc(10+dx,ty+len,2.8,0,TAU);x.fill()});x.fillStyle="rgba(255,255,255,.55)";x.beginPath();x.ellipse(0,ty-1,8,1.6,0,0,TAU);x.fill()}
+  var kr=ez(e,1.2,.6);x.save();x.translate(92,-20);x.scale(kr,kr);x.rotate(-.2);var rg=x.createLinearGradient(0,-8,0,8);rg.addColorStop(0,"#F7DDAA");rg.addColorStop(1,"#D9A75C");x.fillStyle=rg;x.beginPath();x.roundRect(-26,-8,52,16,8);x.fill();x.strokeStyle="rgba(170,110,40,.5)";x.lineWidth=1.2;x.beginPath();x.ellipse(22,0,4,7,0,0,TAU);x.stroke();x.restore();
+  var kb=ez(e,1.4,.5);x.save();x.translate(64,-4);x.scale(kb,kb);x.fillStyle="#F3F5F7";x.beginPath();x.ellipse(0,0,16,5,0,0,TAU);x.fill();x.fillStyle="#FFE9A8";x.beginPath();x.roundRect(-9,-10,18,9,3);x.fill();x.fillStyle="#3D8A3A";x.beginPath();x.ellipse(10,-8,5,2.4,-.5,0,TAU);x.fill();x.restore()})})});
+
+/* שוקו חם מסוגנן */
+add("עונות","ספל חורף",function(){zone();var mm=[];for(var i=0;i<5;i++)mm.push([rnd(-24,24),rnd(-4,3),rnd(.3,1.2)]);
+  bg(function(e,t){light("255,170,110",.34*ez(e,.3,1.2),Z.base-70*Z.sc);for(var s=0;s<1;s++)if(R()<.06)part({x:rnd(0,W),y:-6,vx:rnd(-.2,.2),vy:rnd(.4,.8),size:rnd(2,4),col:"#FFFFFF",shape:"flake",rot:rnd(0,TAU),vr:.01,sway:.01,max:14,fade:0,a:.8});
+  local(function(){var k=ez(e,0,.7);x.save();x.globalAlpha=k;x.translate(0,(1-k)*14);groundShadow(84);
+    x.fillStyle="#E6E9EC";x.beginPath();x.ellipse(0,-2,70,10,0,0,TAU);x.fill();x.fillStyle="#D3D8DE";x.beginPath();x.ellipse(0,-3,50,6,0,0,TAU);x.fill();
+    x.strokeStyle="#00203F";x.lineWidth=10;x.lineCap="round";x.beginPath();x.ellipse(46,-52,15,20,0,-1.3,1.3);x.stroke();
+    var mg=x.createLinearGradient(-44,0,44,0);mg.addColorStop(0,"#0B3260");mg.addColorStop(.4,"#1F5FBF");mg.addColorStop(1,"#00203F");x.fillStyle=mg;x.beginPath();x.moveTo(-44,-104);x.lineTo(44,-104);x.lineTo(40,-14);x.quadraticCurveTo(38,-4,28,-4);x.lineTo(-28,-4);x.quadraticCurveTo(-38,-4,-40,-14);x.closePath();x.fill();
+    x.fillStyle="#FFFFFF";for(var f=0;f<7;f++){var fx=-30+f*10,fy=-60+(f%2)*8;x.save();x.translate(fx,fy);x.rotate(f);x.strokeStyle="rgba(255,255,255,.85)";x.lineWidth=1.4;for(var a=0;a<3;a++){x.rotate(PI/3);x.beginPath();x.moveTo(-4,0);x.lineTo(4,0);x.stroke()}x.restore()}
+    x.fillStyle="rgba(255,255,255,.18)";x.beginPath();x.roundRect(-36,-96,7,80,4);x.fill();
+    x.fillStyle="#5B2E14";x.beginPath();x.ellipse(0,-104,44,8,0,0,TAU);x.fill();x.fillStyle="#7A4320";x.beginPath();x.ellipse(-4,-105,30,4,0,0,TAU);x.fill();
+    var km=ez(e,.6,.8);mm.forEach(function(m,i){if(km<=0)return;var y=-108+m[1]-(1-km)*30;x.save();x.translate(m[0]+Math.sin(t*.001+i)*.8,y);x.rotate(m[2]);x.fillStyle="#FFFFFF";x.beginPath();x.roundRect(-6,-5,12,10,3);x.fill();x.fillStyle="#FFE3EC";x.fillRect(-6,-5,12,3);x.restore()});
+    var kc=ez(e,.9,.6);if(kc>0){x.save();x.translate(-58,-6);x.scale(kc,kc);x.fillStyle="#C98534";x.beginPath();x.arc(0,0,14,0,TAU);x.fill();x.fillStyle="#5B2E14";[[-5,-4],[4,-6],[2,4],[-6,5],[6,2]].forEach(function(c){x.beginPath();x.arc(c[0],c[1],2,0,TAU);x.fill()});x.restore()}
+    var kcane=ez(e,1.1,.6);if(kcane>0){x.save();x.translate(30,-110);x.rotate(.35);x.globalAlpha=k*kcane;x.lineCap="round";x.strokeStyle="#FFFFFF";x.lineWidth=5;x.beginPath();x.moveTo(0,30);x.lineTo(0,-14);x.arc(6,-14,6,PI,0);x.stroke();x.strokeStyle="#FA1664";x.lineWidth=5;x.setLineDash([4,5]);x.beginPath();x.moveTo(0,30);x.lineTo(0,-14);x.arc(6,-14,6,PI,0);x.stroke();x.setLineDash([]);x.restore()}
+    x.strokeStyle=isDark()?"rgba(255,255,255,.4)":"rgba(0,32,63,.22)";x.lineWidth=3;x.lineCap="round";for(var s3=0;s3<3;s3++){var ph=((t*.0005+s3*.33)%1);x.globalAlpha=k*Math.sin(ph*PI);x.beginPath();for(var j=0;j<=12;j++){var yy=-118-ph*34-j*3,xx=(s3-1)*14+Math.sin(j*.7+t*.003+s3)*5;j?x.lineTo(xx,yy):x.moveTo(xx,yy)}x.stroke()}x.restore()})})});
+
+/* חוף ים על כל המסך */
+add("עונות","חוף מלא",function(){zone();var gulls=0;bg(function(e,t){var k=ez(e,0,1.4),hz=Z.top+18*Z.sc,shore=Z.base-8*Z.sc;
+  x.save();x.globalAlpha=k;var sky=x.createLinearGradient(0,0,0,hz);sky.addColorStop(0,isDark()?"#0E3A5A":"#8FD8F5");sky.addColorStop(1,isDark()?"#2A6A8E":"#D6F1FB");x.fillStyle=sky;x.fillRect(0,0,W,hz);
+  x.save();x.globalCompositeOperation=S.add;var sg=x.createRadialGradient(W*.85,40,0,W*.85,40,160);sg.addColorStop(0,"rgba(255,240,180,.9)");sg.addColorStop(1,"rgba(255,220,140,0)");x.fillStyle=sg;x.fillRect(0,0,W,hz+40);x.restore();x.fillStyle="#FFF3C2";x.beginPath();x.arc(W*.85,40,22,0,TAU);x.fill();
+  var sea=x.createLinearGradient(0,hz,0,shore);sea.addColorStop(0,"#0A7FB6");sea.addColorStop(.6,"#1FA8DA");sea.addColorStop(1,"#6FD6F2");x.fillStyle=sea;x.fillRect(0,hz,W,shore-hz+4);
+  x.fillStyle="rgba(255,255,255,.35)";for(var g2=0;g2<10;g2++){var gy=hz+8+g2*((shore-hz)/10),off=(t*.01*(1+g2*.1))%40;for(var gx=-40+off;gx<W;gx+=40+g2*6){x.fillRect(gx,gy,14+g2,1.4)}}
+  x.fillStyle="#FFFFFF";for(var f=0;f<3;f++){x.globalAlpha=k*(.55+.25*Math.sin(t*.002+f));x.beginPath();for(var xx=0;xx<=W;xx+=6)x.lineTo(xx,shore-f*6+Math.sin(xx*.05+t*.003+f*2)*2.5);x.lineTo(W,shore+6-f*6);x.lineTo(0,shore+6-f*6);x.closePath();x.fill()}
+  x.globalAlpha=k;var sd=x.createLinearGradient(0,shore,0,H);sd.addColorStop(0,isDark()?"#8C7A5A":"#F2D9A8");sd.addColorStop(1,isDark()?"#6E5F45":"#E8C88A");x.fillStyle=sd;x.fillRect(0,shore+4,W,H-shore);
+  x.fillStyle="rgba(170,120,60,.22)";for(var d=0;d<120;d++){x.beginPath();x.arc(hsh(d)*W,shore+10+hsh(d+3)*(H-shore),1.2,0,TAU);x.fill()}
+  [[.12,.3,"#FA1664"],[.88,.62,"#FFC94A"],[.18,.78,"#06B3E5"]].forEach(function(s,i){var kk=ez(e,.8+i*.2,.5);if(kk<=0)return;x.save();x.translate(s[0]*W,shore+(H-shore)*s[1]);x.scale(kk,kk);x.fillStyle=s[2];x.beginPath();x.moveTo(0,-8);for(var v=0;v<5;v++){var a=v*TAU/5-PI/2;x.quadraticCurveTo(Math.cos(a+.6)*3,Math.sin(a+.6)*3,Math.cos(a+TAU/5)*8,Math.sin(a+TAU/5)*8)}x.fill();x.restore()});x.restore();
+  local(function(){var ku=ez(e,.5,.7);x.save();x.translate(-40,8);x.globalAlpha=ku;x.strokeStyle="#F3F5F7";x.lineWidth=3;x.beginPath();x.moveTo(0,10);x.lineTo(6,-112);x.stroke();var cols=["#FA1664","#FFFFFF","#06B3E5","#FFFFFF","#FA1664"];x.save();x.translate(6,-114);x.rotate(.08);for(var i=0;i<5;i++){var a0=-66+i*26.4,a1=a0+26.4;x.fillStyle=cols[i];x.beginPath();x.moveTo(0,-12);x.lineTo(a0,14);x.quadraticCurveTo((a0+a1)/2,8,a1,14);x.closePath();x.fill()}x.restore();
+    x.fillStyle="rgba(0,20,40,.12)";x.beginPath();x.ellipse(10,12,60,8,0,0,TAU);x.fill();x.restore();
+    var kc=ez(e,.8,.6);x.save();x.translate(54,8);x.globalAlpha=kc;x.strokeStyle="#9C6232";x.lineWidth=3;x.beginPath();x.moveTo(-26,4);x.lineTo(10,-40);x.moveTo(20,4);x.lineTo(-6,-22);x.stroke();x.fillStyle="#06B3E5";x.beginPath();x.moveTo(-22,-2);x.lineTo(-2,-28);x.lineTo(8,-36);x.lineTo(12,-30);x.lineTo(2,-22);x.lineTo(16,-2);x.closePath();x.fill();x.fillStyle="#FFFFFF";x.beginPath();x.moveTo(-14,-4);x.lineTo(0,-24);x.lineTo(4,-20);x.lineTo(-8,-4);x.closePath();x.fill();x.restore()});
+  if(e>1.4&&R()<.006)part({x:-20,y:rnd(20,Z.top),vx:rnd(1,1.5),vy:rnd(-.1,.1),size:7,col:"#00203F",shape:"bird",max:10,fade:0})})});
+
+/* חומות ירושלים מחדש: שכבות, מגדל, שער, ברושים ועץ זית, אור זהב */
+add("ימים מיוחדים","ירושלים של זהב",function(){zone();bg(function(e,t){var kl=ez(e,.5,1.8);light("255,185,90",.4*kl,Z.base-90*Z.sc);local(function(){var k=ez(e,0,1);x.save();x.globalAlpha=k;
+  x.fillStyle=isDark()?"rgba(120,100,70,.35)":"rgba(225,200,160,.55)";x.beginPath();x.moveTo(-170,-40);for(var xx=-170;xx<=170;xx+=10)x.lineTo(xx,-58-Math.sin(xx*.02+1)*14-Math.sin(xx*.05)*5);x.lineTo(170,-40);x.closePath();x.fill();
+  function stone(y0,y1){var g=x.createLinearGradient(0,y0,0,y1);g.addColorStop(0,"#F6DFAE");g.addColorStop(1,"#D8B272");return g}
+  x.fillStyle=stone(-60,0);x.fillRect(-150,-56,300,56);for(var c=0;c<15;c++){x.beginPath();x.moveTo(-150+c*20,-56);x.lineTo(-150+c*20,-64);x.quadraticCurveTo(-144+c*20,-70,-138+c*20,-64);x.lineTo(-138+c*20,-56);x.fill()}
+  x.fillStyle="rgba(160,120,60,.16)";for(var r=0;r<5;r++)for(var b=0;b<16;b++){x.fillRect(-150+b*19+(r%2)*9,-52+r*10.5,17,9)}
+  x.fillStyle=stone(-150,0);x.fillRect(-124,-132,52,132);for(var c2=0;c2<3;c2++){x.beginPath();x.moveTo(-124+c2*19,-132);x.lineTo(-124+c2*19,-142);x.quadraticCurveTo(-117+c2*19,-148,-110+c2*19,-142);x.lineTo(-110+c2*19,-132);x.fill()}
+  x.fillStyle="rgba(160,120,60,.16)";for(var r2=0;r2<11;r2++)for(var b2=0;b2<3;b2++)x.fillRect(-124+b2*17+(r2%2)*8,-128+r2*11.5,15,10);
+  x.fillStyle="#8A6436";x.beginPath();x.roundRect(-102,-114,8,18,[4,4,0,0]);x.fill();x.beginPath();x.roundRect(-102,-80,8,18,[4,4,0,0]);x.fill();
+  x.fillStyle=stone(-110,0);x.fillRect(-30,-104,60,104);for(var c3=0;c3<4;c3++){x.beginPath();x.moveTo(-30+c3*16,-104);x.lineTo(-30+c3*16,-112);x.quadraticCurveTo(-24+c3*16,-118,-18+c3*16,-112);x.lineTo(-18+c3*16,-104);x.fill()}
+  x.fillStyle="#E9C98A";x.beginPath();x.moveTo(-20,0);x.lineTo(-20,-44);x.arc(0,-44,20,PI,0);x.lineTo(20,0);x.closePath();x.fill();x.fillStyle="#6B4A2B";x.beginPath();x.moveTo(-15,0);x.lineTo(-15,-44);x.arc(0,-44,15,PI,0);x.lineTo(15,0);x.closePath();x.fill();
+  x.strokeStyle="rgba(40,25,10,.4)";x.lineWidth=1;x.beginPath();x.moveTo(0,0);x.lineTo(0,-58);x.stroke();x.fillStyle="#C8902A";x.beginPath();x.arc(-4,-24,1.6,0,TAU);x.arc(4,-24,1.6,0,TAU);x.fill();
+  [[60,0],[80,8]].forEach(function(cp,i){x.fillStyle="#2F6E2E";x.beginPath();x.moveTo(cp[0],-cp[1]);x.quadraticCurveTo(cp[0]-9,-60-cp[1]*0,cp[0],-104+cp[1]*2);x.quadraticCurveTo(cp[0]+9,-60,cp[0],-cp[1]);x.fill()});
+  x.save();x.translate(126,0);x.fillStyle="#6B4A33";x.fillRect(-3,-34,6,34);x.fillStyle="#7E9A5A";[[-14,-40,16],[6,-46,18],[-2,-56,14],[16,-36,12]].forEach(function(o){x.beginPath();x.ellipse(o[0],o[1],o[2],o[2]*.7,0,0,TAU);x.fill()});x.restore();
+  x.save();x.globalCompositeOperation=S.add;var gw=x.createRadialGradient(-140,-60,0,-140,-60,220);gw.addColorStop(0,"rgba(255,200,100,"+.35*kl+")");gw.addColorStop(1,"rgba(255,200,100,0)");x.fillStyle=gw;x.beginPath();x.arc(-140,-60,220,0,TAU);x.fill();x.restore();x.restore()});
+  if(e>1.6&&R()<.012)part({x:-20,y:Z.top+rnd(0,40),vx:rnd(1,1.5),size:7,col:isDark()?"#E6E9EC":"#00203F",shape:"bird",max:10,fade:0})})});
+
+/* ===== round 6 ===== */
+/* יום קר: ספל עם שרוול סרוג, קצפת, סוכריה בתוך הכוס */
+add("עונות","ספל סרוג",function(){zone();var mm=[];for(var i=0;i<4;i++)mm.push([rnd(-20,20),rnd(-6,0),rnd(0,TAU)]);
+  bg(function(e,t){light("255,170,110",.34*ez(e,.3,1.2),Z.base-70*Z.sc);if(R()<.07)part({x:rnd(0,W),y:-6,vx:rnd(-.2,.2),vy:rnd(.4,.8),size:rnd(2,4),col:"#FFFFFF",shape:"flake",rot:rnd(0,TAU),vr:.01,sway:.01,max:14,fade:0,a:.85});
+  local(function(){var k=ez(e,0,.7);x.save();x.globalAlpha=k;x.translate(0,(1-k)*14);groundShadow(90);
+    x.fillStyle="#E6E9EC";x.beginPath();x.ellipse(0,-2,76,11,0,0,TAU);x.fill();x.fillStyle="#D3D8DE";x.beginPath();x.ellipse(0,-3,54,7,0,0,TAU);x.fill();
+    [[-62,-8],[66,-7]].forEach(function(c,i){x.save();x.translate(c[0],c[1]);x.fillStyle="#C98534";x.beginPath();x.arc(0,0,12,0,TAU);x.fill();x.fillStyle="#E8B26A";x.beginPath();x.arc(-2,-2,9,0,TAU);x.fill();x.fillStyle="#5B2E14";[[-4,-3],[3,-5],[2,3],[-5,4]].forEach(function(d){x.beginPath();x.arc(d[0],d[1],1.8,0,TAU);x.fill()});x.restore()});
+    x.save();x.translate(-84,-10);x.rotate(-.3);x.strokeStyle="#2F6E2E";x.lineWidth=2;x.beginPath();x.moveTo(0,0);x.lineTo(30,-8);x.stroke();for(var n=0;n<8;n++){x.beginPath();x.moveTo(4+n*3.4,-1-n*.9);x.lineTo(1+n*3.4,-9-n*.9);x.moveTo(4+n*3.4,-1-n*.9);x.lineTo(8+n*3.4,-8-n*.9);x.stroke()}x.fillStyle="#C21F3A";x.beginPath();x.arc(30,-8,3,0,TAU);x.arc(26,-4,2.6,0,TAU);x.fill();x.restore();
+    x.strokeStyle="#00203F";x.lineWidth=10;x.lineCap="round";x.beginPath();x.ellipse(46,-54,15,20,0,-1.3,1.3);x.stroke();
+    var mg=x.createLinearGradient(-44,0,44,0);mg.addColorStop(0,"#0B3260");mg.addColorStop(.4,"#1F5FBF");mg.addColorStop(1,"#00203F");x.fillStyle=mg;x.beginPath();x.moveTo(-44,-106);x.lineTo(44,-106);x.lineTo(40,-14);x.quadraticCurveTo(38,-4,28,-4);x.lineTo(-28,-4);x.quadraticCurveTo(-38,-4,-40,-14);x.closePath();x.fill();
+    
+    x.fillStyle="#5B2E14";x.beginPath();x.ellipse(0,-106,44,8,0,0,TAU);x.fill();
+    var kc=ez(e,.6,.9),ch=24*kc;x.fillStyle="#FFFFFF";x.beginPath();x.moveTo(-40,-106);x.bezierCurveTo(-40,-106-ch*.7,-24,-106-ch,-6,-106-ch*.9);x.bezierCurveTo(0,-106-ch*1.3,10,-106-ch*1.35,8,-106-ch*1.55);x.bezierCurveTo(22,-106-ch*1.1,40,-106-ch*.6,40,-106);x.closePath();x.fill();
+    x.fillStyle="rgba(200,210,220,.6)";x.beginPath();x.ellipse(-12,-110,14,4,.2,0,TAU);x.fill();
+    if(kc>.8){x.strokeStyle="#5B2E14";x.lineWidth=2.4;x.beginPath();for(var j=0;j<=20;j++){var u=j/20,xx=-30+u*60,yy=-112-Math.sin(u*PI)*16+Math.sin(u*14)*3;j?x.lineTo(xx,yy):x.moveTo(xx,yy)}x.stroke()}
+    var km=ez(e,.9,.6);mm.forEach(function(m,i){if(km<=0)return;x.save();x.translate(m[0],-118-14*Math.sin((m[0]+30)/60*PI)*kc+m[1]-(1-km)*20);x.rotate(m[2]);x.fillStyle="#FFFFFF";x.beginPath();x.roundRect(-5,-4,10,8,3);x.fill();x.fillStyle="#FFE3EC";x.fillRect(-5,-4,10,2.6);x.restore()});
+    var kk=ez(e,1.1,.6);if(kk>0){x.save();x.translate(26,-104);x.rotate(.28);x.globalAlpha=k*kk;x.lineCap="round";x.strokeStyle="#FFFFFF";x.lineWidth=5;x.beginPath();x.moveTo(0,4);x.lineTo(0,-46);x.arc(7,-46,7,PI,0);x.stroke();x.strokeStyle="#FA1664";x.setLineDash([4,5]);x.beginPath();x.moveTo(0,4);x.lineTo(0,-46);x.arc(7,-46,7,PI,0);x.stroke();x.setLineDash([]);x.restore();
+      x.fillStyle="#FFFFFF";x.beginPath();x.ellipse(24,-108,12,5,.2,0,TAU);x.fill()}
+    x.fillStyle="rgba(255,255,255,.2)";x.beginPath();x.roundRect(-36,-98,7,78,4);x.fill();
+    x.strokeStyle=isDark()?"rgba(255,255,255,.4)":"rgba(0,32,63,.22)";x.lineWidth=3;x.lineCap="round";for(var s3=0;s3<3;s3++){var ph=((t*.0005+s3*.33)%1);x.globalAlpha=k*Math.sin(ph*PI);x.beginPath();for(var j2=0;j2<=12;j2++){var y2=-146-ph*30-j2*3,x2=(s3-1)*16+Math.sin(j2*.7+t*.003+s3)*5;j2?x.lineTo(x2,y2):x.moveTo(x2,y2)}x.stroke()}x.restore()})})});
+
+/* קיץ: חוף חי — גלים שמגיעים ונסוגים, דקל, סירה באופק, מגבת, דלי ועננים */
+add("עונות","חוף חי",function(){zone();var cl=[[.1,.62,.6],[.55,.78,.75]];bg(function(e,t){var k=ez(e,0,1.4),hz=Z.top+18*Z.sc,shore=Z.base-8*Z.sc;
+  x.save();x.globalAlpha=k;var sky=x.createLinearGradient(0,0,0,hz);sky.addColorStop(0,isDark()?"#0E3A5A":"#7CD0F2");sky.addColorStop(1,isDark()?"#2A6A8E":"#E2F6FC");x.fillStyle=sky;x.fillRect(0,0,W,hz);
+  x.save();x.translate(W*.86,42);x.rotate(t*.0002);x.globalCompositeOperation=S.add;var sg=x.createRadialGradient(0,0,0,0,0,170);sg.addColorStop(0,"rgba(255,240,180,.95)");sg.addColorStop(1,"rgba(255,220,140,0)");x.fillStyle=sg;x.beginPath();x.arc(0,0,170,0,TAU);x.fill();x.globalCompositeOperation="source-over";
+    x.fillStyle="rgba(255,236,170,.45)";for(var r=0;r<12;r++){x.rotate(TAU/12);x.beginPath();x.moveTo(26,-3);x.lineTo(70,-8);x.lineTo(70,8);x.lineTo(26,3);x.fill()}x.fillStyle="#FFF3C2";x.beginPath();x.arc(0,0,22,0,TAU);x.fill();x.restore();
+  cl.forEach(function(c,i){cloud(((c[0]*W+t*.006*(i+1))%(W+140))-90,c[1]*hz,c[2],isDark()?.3:.95)});
+  var sea=x.createLinearGradient(0,hz,0,shore);sea.addColorStop(0,"#06709F");sea.addColorStop(.55,"#0FA2D6");sea.addColorStop(1,"#5FD6F2");x.fillStyle=sea;x.fillRect(0,hz,W,shore-hz+6);
+  var bx=((t*.012)%(W+80))-40;x.save();x.translate(W-bx,hz+4+Math.sin(t*.002)*1);x.fillStyle="#00203F";x.beginPath();x.moveTo(-10,0);x.lineTo(10,0);x.lineTo(7,4);x.lineTo(-7,4);x.closePath();x.fill();x.fillStyle="#FFFFFF";x.beginPath();x.moveTo(0,-1);x.lineTo(0,-18);x.lineTo(9,-2);x.closePath();x.fill();x.fillStyle="#FA1664";x.beginPath();x.moveTo(-1,-2);x.lineTo(-1,-14);x.lineTo(-8,-2);x.closePath();x.fill();x.restore();
+  x.save();x.globalCompositeOperation=S.add;for(var g=0;g<26;g++){var gx=hsh(g)*W,gy=hz+6+hsh(g+11)*(shore-hz-14),tw=.5+.5*Math.sin(t*.004+g*1.7);x.fillStyle="rgba(255,255,255,"+.55*tw+")";x.beginPath();x.ellipse(gx+Math.sin(t*.001+g)*6,gy,8+g%4*3,1.2,0,0,TAU);x.fill()}x.restore();
+  var wv=(Math.sin(t*.0012)+1)/2,reach=shore+6+wv*18;
+  x.globalAlpha=k;var sd=x.createLinearGradient(0,shore,0,H);sd.addColorStop(0,isDark()?"#8C7A5A":"#F4DDAE");sd.addColorStop(1,isDark()?"#6E5F45":"#E8C88A");x.fillStyle=sd;x.fillRect(0,shore+2,W,H-shore);
+  x.fillStyle="rgba(180,140,90,.35)";x.beginPath();x.moveTo(0,shore);for(var xx=0;xx<=W;xx+=6)x.lineTo(xx,reach+10+Math.sin(xx*.04+t*.001)*3);x.lineTo(W,shore);x.closePath();x.fill();
+  x.fillStyle="rgba(95,214,242,.85)";x.beginPath();x.moveTo(0,shore);for(var x2=0;x2<=W;x2+=6)x.lineTo(x2,reach+Math.sin(x2*.04+t*.002)*4);x.lineTo(W,shore);x.closePath();x.fill();
+  x.fillStyle="rgba(255,255,255,.9)";x.beginPath();for(var x3=0;x3<=W;x3+=6)x.lineTo(x3,reach+Math.sin(x3*.04+t*.002)*4);for(var x4=W;x4>=0;x4-=6)x.lineTo(x4,reach-4+Math.sin(x4*.04+t*.002)*4+Math.sin(x4*.2+t*.004)*1.5);x.closePath();x.fill();
+  x.fillStyle="rgba(170,120,60,.22)";for(var d=0;d<120;d++){x.beginPath();x.arc(hsh(d)*W,reach+18+hsh(d+3)*(H-reach),1.2,0,TAU);x.fill()}
+  [[.1,.4,"#FA1664"],[.9,.68,"#FFC94A"],[.16,.82,"#06B3E5"]].forEach(function(s,i){var kk=ez(e,.8+i*.2,.5);if(kk<=0)return;x.save();x.translate(s[0]*W,reach+30+(H-reach)*s[1]*.6);x.scale(kk,kk);x.fillStyle=s[2];x.beginPath();x.moveTo(0,-8);for(var v=0;v<5;v++){var a=v*TAU/5-PI/2;x.quadraticCurveTo(Math.cos(a+.6)*3,Math.sin(a+.6)*3,Math.cos(a+TAU/5)*8,Math.sin(a+TAU/5)*8)}x.fill();x.restore()});
+  x.save();x.translate(W*.06,shore+30);var sw=Math.sin(t*.0012)*.05;x.fillStyle="#8B5A2B";x.beginPath();x.moveTo(-5,0);x.quadraticCurveTo(6,-80,22+sw*80,-150);x.lineTo(28+sw*80,-148);x.quadraticCurveTo(12,-80,5,0);x.closePath();x.fill();
+    x.translate(25+sw*80,-150);for(var f=0;f<6;f++){x.save();x.rotate(-PI/2+(f-2.5)*.55+sw*2);x.fillStyle=f%2?"#3D8A3A":"#2F6E2E";x.beginPath();x.moveTo(0,0);x.quadraticCurveTo(30,-18,62,6);x.quadraticCurveTo(30,-4,0,0);x.fill();x.restore()}x.fillStyle="#6B4A2B";x.beginPath();x.arc(-3,4,4,0,TAU);x.arc(4,5,4,0,TAU);x.fill();x.restore();
+  x.restore();
+
+  if(e>1.4&&R()<.006)part({x:-20,y:rnd(20,hz-10),vx:rnd(1,1.5),vy:rnd(-.1,.1),size:7,col:"#00203F",shape:"bird",max:10,fade:0})})});
+
+/* ---------- runner ---------- */
+var cur=-1,raf=0,last=0,t0=0;
+function start(i){cur=i;P.length=0;later.length=0;size();S={e:0,bgs:[],fgs:[],add:isDark()?"lighter":"source-over"};t0=performance.now();last=t0;
+  try{E[i].init()}catch(err){console.error(err)}
+  if(!raf)raf=requestAnimationFrame(frame)}
+function frame(t){var dt=Math.min(3,(t-last)/16.67);last=t;S.e=(t-t0)/1000;S.add=isDark()?"lighter":"source-over";
+  for(var i=later.length-1;i>=0;i--)if(S.e*1000>=later[i].t){var f=later[i].fn;later.splice(i,1);try{f()}catch(err){}}
+  x.clearRect(0,0,W,H);
+  S.bgs.forEach(function(f){try{f(S.e,t)}catch(err){}});
+  for(var j=P.length-1;j>=0;j--){var p=P[j];step(p,dt);if(p.life>p.max||(p.kill&&(p.y>H+120||p.y<-H*1.6||p.x<-W||p.x>W*2)&&p.life>.2)){P.splice(j,1);continue}}
+  for(var k=0;k<P.length;k++)drawP(P[k]);
+  S.fgs.forEach(function(f){try{f(S.e,t)}catch(err){}});
+
+  raf=requestAnimationFrame(frame)}
+function byName(n){for(var i=0;i<E.length;i++)if(E[i].name===n)return i;return -1}
+function startCombo(names){cur=-2;P.length=0;later.length=0;size();S={e:0,bgs:[],fgs:[],add:isDark()?"lighter":"source-over"};t0=performance.now();last=t0;
+  (names||[]).forEach(function(n){var i=byName(n);if(i>=0)try{E[i].init()}catch(err){}});comboNames=names;if(!raf)raf=requestAnimationFrame(frame)}
+var comboNames=null;
+window.FX={stop:function(){cancelAnimationFrame(raf);raf=0;P.length=0;later.length=0;comboNames=null;S={e:0,bgs:[],fgs:[],add:"source-over"};size();x.clearRect(0,0,W,H)},list:E,byName:byName,play:startCombo,replay:function(){startCombo(comboNames)},start:start,resize:function(){startCombo(comboNames)}};
+})();

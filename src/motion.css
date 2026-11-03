@@ -1,0 +1,51 @@
+/* ===== iOS motion layer (shared by all Keenest sites) — per Apple motion principles ===== */
+:root{--ios-move:cubic-bezier(.22,1,.36,1);--ios-in:cubic-bezier(.4,0,1,1)}
+@supports (animation-timing-function:linear(0,1)){:root{
+  --ios-move:linear(0,.109,.309,.501,.656,.77,.849,.903,.938,.961,.976,.985,.991,.994,1)}}
+html,body{overflow-x:clip}
+#view,main{overflow-x:clip}
+.pop{left:0!important;right:0!important;top:0!important;bottom:0!important;margin:auto!important;height:fit-content!important;transform:none!important}
+.toast{left:0!important;right:0!important;margin-inline:auto!important;width:max-content;max-width:calc(100vw - 32px);transform:none!important}
+.pop,.sheet{will-change:transform,opacity}
+:is(.wseg,.seg,.dseg,nav.tabs,nav.nav)>:is(button,a){font-weight:600!important}
+@media (prefers-reduced-motion:no-preference){
+  :where(button,a,.chip,.cell,label.bwr){transition:transform .45s var(--ios-move)}
+  :where(button,a,.chip,.cell,label.bwr):active{transform:scale(.97);transition:transform .12s ease-out}
+  .row:active,.qc:active,.li:active,.cc1:active,div[data-open]:active{transform:none!important;opacity:1!important}
+  :where(.row,div[data-open],.qc,.li,.cc1):not(:has(:is(button,select,input,textarea,a,label):active)):active{background-color:rgb(127 140 160 / .12)!important}
+  :is(button,.cell,.chip,.btn,.rbtn,.sbtn,.hpill,.fold,.pchip,.wc,.go,.go2,.bp,.bs,.pen,.who,.imp,.ai,.ch2,.bsm2):active{transform:scale(.97)!important}
+  :is(.wseg,.seg,.dseg,nav.tabs,nav.nav)>:is(button,a),:is(.wseg,.seg,.dseg,nav.tabs,nav.nav)>:is(button,a):active{transform:none!important;transition:color .25s!important}
+  .scrim{animation:iosFade .35s ease both}
+  .sheet,.cx-card,.pop{animation:iosPopIn .45s var(--ios-move) both!important}
+  .ios-ghost{pointer-events:none}
+  .ios-ghost .scrim,.ios-ghost .cx-scrim{animation:iosFadeOut .26s ease forwards!important}
+  .ios-ghost .sheet,.ios-ghost .cx-card,.ios-ghost .pop{animation:iosPopOut .24s var(--ios-in) forwards!important}
+  .ios-ghost .menu,.ios-ghost .srt-menu,.ios-ghost .cx-menu{animation:iosMenuOut .2s var(--ios-in) forwards!important}
+  .srt-menu,.menu{transform-origin:top left;animation:iosMenu .38s var(--ios-move) both!important}
+  .cx-menu{animation:iosMenu .38s var(--ios-move) both!important}
+  .toast{animation:iosToast .45s var(--ios-move) both!important}
+  .xwrap.ios-open .xpn{animation:iosReveal .42s var(--ios-move) both}
+  #view.a-tl>*{animation:iosSlideL .42s var(--ios-move) both!important}
+  #view.a-tr>*{animation:iosSlideR .42s var(--ios-move) both!important}
+  #view.a-load>*{animation:iosRise .5s var(--ios-move) both!important}
+  #view.a-flt>*{animation:none!important}
+  #view.ios-push>*,main.v-in{animation:iosSlideL .45s var(--ios-move) both!important}
+  #view.ios-back>*{animation:iosSlideR .45s var(--ios-move) both!important}
+  .ios-thumb{position:absolute;z-index:0;pointer-events:none;will-change:transform,width}
+  .ios-flip{position:relative;z-index:1;transition:none!important}
+  .ios-flip.ios-flip-on{background:transparent!important;box-shadow:none!important}
+}
+@media (prefers-reduced-motion:reduce){
+  .scrim,.sheet,.pop,.menu,.srt-menu,.toast,main.v-in{animation:iosFade .2s ease both!important}
+}
+@keyframes iosFade{from{opacity:0}}
+@keyframes iosFadeOut{to{opacity:0}}
+@keyframes iosPopIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+@keyframes iosPopOut{to{opacity:0;transform:scale(.96)}}
+@keyframes iosMenu{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
+@keyframes iosMenuOut{to{opacity:0;transform:scale(.92)}}
+@keyframes iosToast{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes iosReveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}
+@keyframes iosSlideL{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
+@keyframes iosSlideR{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
+@keyframes iosRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
