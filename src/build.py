@@ -3,7 +3,7 @@ import os
 S=os.path.dirname(os.path.abspath(__file__))+'/../'
 C=S+'src/';O=S+''
 head=open(C+'head.html').read().split('\n')
-head=[l for l in head if 'claude:viewport-fit-sides' not in l and not l.startswith('<title>')]
+head=[l.replace('family=Heebo:wght@400;','family=Heebo:wght@300;400;') for l in head if 'claude:viewport-fit-sides' not in l and not l.startswith('<title>')]
 app=open(C+'app.js').read().split('\n')
 core='\n'.join(app[0:21]+app[44:257]).replace('isMgr()?"רן (מנהל)":emp(me()).name','emp(me()).name')
 extra_css='''
@@ -39,7 +39,10 @@ body{height:100%;overflow-y:auto;overscroll-behavior:none;-webkit-overflow-scrol
 @media (display-mode: standalone){html{height:auto;min-height:min(100lvh,calc(100% + env(safe-area-inset-top,0px)))}body{height:min(100lvh,calc(100vh + env(safe-area-inset-top,0px)))}}
 /* a little more air above the header and the greeting */
 header.top{margin-top:14px}
-.mock .hi{margin-top:30px;font-size:15px;font-weight:600;color:var(--ink)}
+.mock .hi{margin-top:30px;font-size:14.5px;font-weight:300;color:var(--muted);letter-spacing:.01em}
+.mock .q{margin-top:8px}
+.mock .l{font-size:14.5px;font-weight:300;letter-spacing:.01em;margin-bottom:6px}
+.mock .t.wait2{font-size:30px;font-weight:300;letter-spacing:-.01em;color:var(--muted);line-height:1.2;direction:rtl;padding:12px 0}
 .mock .d{margin-top:2px}
 /* full-screen menu */
 .fm{position:fixed;inset:0;z-index:40;background:var(--bg);opacity:0;transform:scale(1.02);transition:opacity .3s cubic-bezier(.32,.72,0,1),transform .3s cubic-bezier(.32,.72,0,1);overflow-y:auto;overscroll-behavior:contain}

@@ -73,13 +73,12 @@ function afterToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);
   if(open&&!forgotAsked[open.date]&&!D.reqs.some(function(r){return r.type==="fix"&&r.emp===e.id&&r.date===open.date&&r.status==="pending"})){forgotAsked[open.date]=1;setTimeout(function(){forgotOut(open)},700)}}
 function viewToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g),look=todayLook(),vacToday=onVac(e.id,g,"ok");
   var st=!p?"before":p.out?"done":"in";
-  var tHtml=st==="before"?'<span class="t wait">—:—</span>':st==="in"?'<span class="t">'+p.in+"</span>":'<span class="t pair">'+p.in+'<span class="dash"> – </span>'+p.out+"</span>";
-  var lab=st==="before"?(vacToday?"היום אתה בחופשה":"עוד לא נכנסת"):st==="in"?"נכנסת ב":"היום";
+  var tHtml=st==="before"?'<span class="t wait2">'+(vacToday?"היום אתה בחופשה":"עוד לא נכנסת")+"</span>":st==="in"?'<span class="t">'+p.in+"</span>":'<span class="t pair">'+p.in+'<span class="dash"> – </span>'+p.out+"</span>";
   var note=(p&&p.note)||D.dayNote||"";
   var flag=p&&p.inLoc==="out"&&!note?'<span class="locflag">נכנסת מחוץ למשרד</span>':"";
   var sad=look.fx&&look.fx[0]==="נר תשעה באב",hi=sad?e.name:partOfDay()+", "+e.name;
-  return '<section class="mock"><span class="hi">'+esc(hi)+'</span><span class="d">יום '+HEB_DAYS[new Date().getDay()]+" · "+nice(g)+'</span><p class="q">'+esc(look.q)+'</p><span class="sp big"></span>'+
-    '<span class="l">'+lab+"</span>"+tHtml+'<button type="button" class="where'+(note?" on":"")+'" id="whereBtn"><svg><use href="#i-pin"/></svg><span>'+(note?esc(note):"מחוץ למשרד היום?")+"</span></button>"+flag+
+  return '<section class="mock"><span class="hi">'+esc(hi)+'</span><p class="q">'+esc(look.q)+'</p><span class="sp big"></span>'+
+    '<span class="l">יום '+HEB_DAYS[new Date().getDay()]+", "+nice(g)+"</span>"+tHtml+'<button type="button" class="where'+(note?" on":"")+'" id="whereBtn"><svg><use href="#i-pin"/></svg><span>'+(note?esc(note):"מחוץ למשרד היום?")+"</span></button>"+flag+
     '<span class="sp"></span><div class="slide'+(st==="in"?" exit":"")+(st==="done"?" done":"")+'" id="slide"><span class="knob" id="knob"><svg><use href="#i-arrow"/></svg></span><span class="lbl" id="slbl">'+(st==="before"?"החלק לכניסה":st==="in"?"החלק ליציאה":"יום טוב, נתראה מחר")+"</span></div></section>"}
 function whereDialog(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);var cur=(p&&p.note)||D.dayNote||"";
   var b=pop('<h3>מחוץ למשרד היום?</h3><p class="sub">אפשר לכתוב איפה אתה, למשל צילומים</p><div class="chips">'+["צילומים","פגישה אצל לקוח","עבודה מהבית"].map(function(c){return '<button type="button">'+c+"</button>"}).join("")+'</div><textarea class="note" id="wn" placeholder="צילומים בנמל תל אביב">'+esc(cur)+'</textarea><div class="btns"><button class="bp" id="wOk">שמירה</button>'+(cur?'<button class="bred" id="wDel">בעצם אני במשרד</button>':"")+'<button class="bs">ביטול</button></div>');
@@ -295,7 +294,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=13;
+APP_VERSION=14;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
