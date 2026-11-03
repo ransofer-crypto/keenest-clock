@@ -158,6 +158,8 @@ header.top{margin-top:14px}
 .fm{transform-origin:calc(100% - 40px) 40px;transform:scale(.96);filter:blur(6px);transition:opacity .32s cubic-bezier(.32,.72,0,1),transform .42s cubic-bezier(.32,.72,0,1),filter .32s cubic-bezier(.32,.72,0,1)}
 .fm.show{filter:none}
 @media (prefers-reduced-motion:reduce){.mock .q.rise,.mock .t.rise{animation:none}.fm{transform:none;filter:none}}
+/* clock-out slides the other way */
+.slide.exit .knob{right:auto;left:5px}
 /* manager avatars, same colors as the work board */
 .av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
 .av.z{background:linear-gradient(135deg,#4CC98A,#1F8A55);color:#fff}

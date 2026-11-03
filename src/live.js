@@ -59,11 +59,11 @@ async function act(){if(busy)return;var e=emp(me()),g=iso(new Date()),p=punchOf(
   if(loc==="out"){outAway(p,pos);return}clockOut(loc,pos,null)}
 /* optimistic: the screen updates at once, the server confirms in the background */
 async function clockIn(loc,pos){var e=emp(me()),g=iso(new Date()),t=hm(new Date()),tmp={id:"tmp",emp:e.id,date:g,in:t,out:null,inLoc:loc,outLoc:"",note:D.dayNote||"",pending:false};
-  D.punches.push(tmp);window.__rise=1;render();toast(partOfDay()+"! נכנסת ב־"+t);
+  D.punches.push(tmp);window.__rise=1;render();
   try{var r=await rpc("clock_in",{loc:loc,lat:pos&&pos.lat,lng:pos&&pos.lng});tmp.id=r.id;var st=t5(r.in_time);if(st!==tmp.in){tmp.in=st;var el=document.querySelector(".mock .t");if(el)el.textContent=st}}
   catch(x){D.punches=D.punches.filter(function(p){return p!==tmp});render();toast(errMsg(x))}}
 async function clockOut(loc,pos,earlier){var e=emp(me()),p=punchOf(e.id,iso(new Date())),t=earlier||hm(new Date());if(p){p.out=t;p.outLoc=loc;if(earlier)p.pending=true}
-  window.__rise=1;render();toast(earlier?"שעת היציאה נשלחה לאישור":"יצאת ב־"+t+". "+partOfDay()+"!");
+  window.__rise=1;render();if(earlier)toast("שעת היציאה נשלחה לאישור");
   try{var r=await rpc("clock_out",{loc:loc,lat:pos&&pos.lat,lng:pos&&pos.lng,earlier:earlier});if(p&&!earlier){var st=t5(r.out_time);if(st!==p.out){p.out=st;render()}}if(earlier)refresh()}
   catch(x){if(p){p.out=null;p.pending=false}render();toast(errMsg(x))}}
 function outAway(p,pos){var b=pop('<h3>אתה לא במשרד</h3><p class="sub">מתי יצאת?</p><div class="seg" id="whenSeg"><button type="button" aria-pressed="true" data-w="now">עכשיו</button><button type="button" aria-pressed="false" data-w="before">קודם</button></div><div class="form" id="tBox" hidden><div class="fld"><label for="outT">שעת יציאה</label><input id="outT" type="time" value="'+hm(new Date())+'"></div></div><p id="tNote" hidden>שעה מוקדמת נשלחת לאישור של רן או צפריר.</p><div class="btns"><button class="bp" id="okOut">יציאה</button><button class="bs">ביטול</button></div>');
@@ -302,7 +302,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=16;
+APP_VERSION=17;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
@@ -310,21 +310,21 @@ var _viewToday=viewToday;
 viewToday=function(){var h=_viewToday();window.__rise=0;
   return h.replace('<span class="knob" id="knob"><svg><use href="#i-arrow"/></svg></span>','<span class="sky" id="sky"></span><span class="knob" id="knob"><svg class="k1"><use href="#i-moon"/></svg><svg class="k2"><use href="#i-sun"/></svg></span>')};
 function bindSlide(){var slide=$("#slide"),knob=$("#knob"),lbl=$("#slbl"),sky=$("#sky");if(!slide||slide.classList.contains("done"))return;
-  var exit=slide.classList.contains("exit"),drag=null,R=exit?RAMP_OUT:RAMP_IN;
+  var exit=slide.classList.contains("exit"),drag=null,R=exit?RAMP_OUT:RAMP_IN,dir=exit?1:-1;
   if(exit){knob.querySelector(".k1").innerHTML='<use href="#i-sun"/>';knob.querySelector(".k2").innerHTML='<use href="#i-moon"/>'}
   function max(){return slide.clientWidth-60}
   /* the knob follows the finger; the colors follow the knob with a soft lag, so fast moves still blend slowly */
   var cur=0,target=0,raf=0,last=0,fast=false;
   function colors(p){lbl.style.opacity=String(Math.max(0,1-p*3));lbl.style.color=p>0.02?"rgb(255 255 255 / .85)":"";
-    var c=rampAt(R,p),c2=rampAt(R,Math.max(0,p-.28));sky.style.opacity=String(Math.min(1,p*12));sky.style.background="linear-gradient(270deg,rgb("+c2+") 0%,rgb("+c+") 100%)";
+    var c=rampAt(R,p),c2=rampAt(R,Math.max(0,p-.28));sky.style.opacity=String(Math.min(1,p*12));sky.style.background="linear-gradient("+(exit?90:270)+"deg,rgb("+c2+") 0%,rgb("+c+") 100%)";
     var q1=Math.max(0,Math.min(1,(.54-p)/.14)),q2=Math.max(0,Math.min(1,(p-.46)/.14));knob.querySelector(".k1").style.opacity=String(q1);knob.querySelector(".k1").style.transform="rotate("+(-p*90)+"deg) scale("+(.7+.3*q1)+")";knob.querySelector(".k2").style.opacity=String(q2);knob.querySelector(".k2").style.transform="rotate("+((1-p)*90)+"deg) scale("+(.7+.3*q2)+")";
     knob.style.setProperty("--kc","rgb("+c+")")}
   function tick(t){var dt=last?Math.min(64,t-last)/1000:0.016;last=t;cur+=(target-cur)*(1-Math.exp(-dt/(fast?0.12:0.28)));if(Math.abs(target-cur)<0.0015)cur=target;colors(cur);if(cur!==target)raf=requestAnimationFrame(tick);else{raf=0;last=0}}
-  function paint(d){target=Math.max(0,Math.min(1,d/max()));knob.style.transform="translateX("+(-d)+"px)";if(!raf)raf=requestAnimationFrame(tick)}
+  function paint(d){target=Math.max(0,Math.min(1,d/max()));knob.style.transform="translateX("+(dir*d)+"px)";if(!raf)raf=requestAnimationFrame(tick)}
   colors(0);knob.style.transform="translateX(0px)";
   knob.onpointerdown=function(e){if(busy)return;if(!window.__posP)window.__posP=getPos();drag={x:e.clientX,d:0};knob.setPointerCapture(e.pointerId);knob.style.transition="none";sky.style.transition="none"};
-  knob.onpointermove=function(e){if(!drag)return;drag.d=Math.max(0,Math.min(max(),drag.x-e.clientX));paint(drag.d)};
-  function settle(to,cb){var from=parseFloat((knob.style.transform.match(/-?[\d.]+/)||[0])[0])*-1||0,t0=performance.now(),dur=Math.max(200,(to>0?560:750)*Math.abs(to-from)/Math.max(1,max()));
+  knob.onpointermove=function(e){if(!drag)return;drag.d=Math.max(0,Math.min(max(),(e.clientX-drag.x)*dir));paint(drag.d)};
+  function settle(to,cb){var from=Math.abs(parseFloat((knob.style.transform.match(/-?[\d.]+/)||[0])[0]))||0,t0=performance.now(),dur=Math.max(200,(to>0?560:750)*Math.abs(to-from)/Math.max(1,max()));
     (function step(){var u=Math.min(1,(performance.now()-t0)/dur),e2=u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;paint(from+(to-from)*e2);if(u<1)requestAnimationFrame(step);else if(cb)cb()})()}
   function finish(){fast=true;if(cur<.9){setTimeout(finish,30);return}var fc=rampAt(R,1);slide.classList.add("arrived");
     sky.style.transition="background .7s cubic-bezier(.32,.72,0,1)";sky.style.background="rgb("+fc+")";
