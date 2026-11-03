@@ -132,7 +132,7 @@ function navHtml(){var L={today:["היום","i-clock"],week:["השבוע","i-lis
 
 /* ---------- account menu (top chip) ---------- */
 function isStandalone(){return matchMedia("(display-mode: standalone)").matches||navigator.standalone===true}
-var APP_VERSION=9;
+var APP_VERSION=10;
 var TL={today:["היום","i-clock"],week:["השבוע","i-list"],vac:["חופשות","i-sun"],team:["צוות","i-team"],approve:["לאישור","i-check"],report:["דוח חודשי","i-chart"]};
 function pendingCount(){return isMgr()?D.reqs.filter(function(r){return r.status==="pending"}).length:0}
 function accountDialog(){var m=emp(me()),pend=pendingCount();
@@ -215,3 +215,83 @@ document.addEventListener("visibilitychange",function(){if(document.visibilitySt
 setInterval(function(){if(started&&document.visibilityState==="visible"&&isMgr())refresh()},60000);
 if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(function(){});
 start();
+
+/* ================= chosen designs: full-screen menu · weekly team board · request cards ================= */
+APP_VERSION=10;
+function accountDialog(){var m=emp(me()),pend=pendingCount(),off=D.office||{},codes=isMgr()?D.all.filter(function(e){return e.code}):[];
+  var old=$("#fullmenu");if(old)old.remove();
+  var el=document.createElement("div");el.id="fullmenu";el.className="fm";el.setAttribute("role","dialog");el.setAttribute("aria-label","תפריט");
+  el.innerHTML='<div class="fm-in"><div class="fm-top"><button class="rb" type="button" id="fmClose" aria-label="סגירה"><svg><use href="#i-x"/></svg></button><img class="hlogo" src="'+$(".hlogo").src+'" alt="Keenest"><span style="width:44px"></span></div>'+
+    '<nav class="fm-big">'+tabOrder().map(function(k){return '<button type="button" data-go="'+k+'"'+(tab===k?' class="on"':"")+'>'+TL[k][0]+(k==="approve"&&pend?'<span class="cnt2">'+pend+"</span>":"")+"</button>"}).join("")+"</nav>"+
+    '<div class="fm-small">'+
+      (isStandalone()?"":'<div class="fm-note">להוספה למסך הבית: בספארי, כפתור השיתוף ואז "הוספה למסך הבית".</div>')+
+      (isMgr()?'<button type="button" id="aHere"><span>מיקום המשרד</span><span>'+(off.lat?"נקבע":"עוד לא נקבע")+'</span></button>'+
+        '<button type="button" id="aCodes"><span>קודי הצטרפות</span><span>'+(codes.length?codes.length+" ממתינים":"כולם נכנסו")+'</span></button>'+
+        '<button type="button" id="aReset"><span>איפוס היום שלי</span><span>לבדיקות</span></button>':"")+
+      '<button type="button" id="aOut" class="r"><span>התנתקות</span><span>'+esc(m?m.name:"")+'</span></button>'+
+      '<div class="fm-ver">גרסה '+APP_VERSION+'</div></div></div>';
+  document.body.appendChild(el);requestAnimationFrame(function(){el.classList.add("show")});
+  function close(){el.classList.remove("show");setTimeout(function(){el.remove()},320)}
+  el.querySelector("#fmClose").onclick=close;
+  el.querySelectorAll("[data-go]").forEach(function(x){x.onclick=function(){var k=x.dataset.go;close();if(k===tab)return;var o=tabOrder(),a=o.indexOf(tab),c=o.indexOf(k);tab=k;render(c>a?"a-tl":"a-tr")}});
+  el.querySelector("#aOut").onclick=async function(){close();await sb.auth.signOut();location.reload()};
+  var rs=el.querySelector("#aReset");if(rs)rs.onclick=async function(){close();try{await rpc("reset_my_day");D.dayNote="";FX.stop();tab="today";await refresh();toast("היום שלך אופס. אפשר להיכנס שוב")}catch(e){toast(errMsg(e))}};
+  var cd=el.querySelector("#aCodes");if(cd)cd.onclick=function(){var b=pop('<h3>קודי הצטרפות</h3><p class="sub">כל אחד לוחץ על השם שלו בשעון ומקליד את הקוד. אחרי שנכנס, הקוד נמחק.</p>'+(codes.length?codes.map(function(e){return '<div class="drow"><span>'+e.name+'</span><span class="nn"></span><span class="tt ltr" style="letter-spacing:.12em;font-size:17px">'+e.code+"</span></div>"}).join(""):'<p class="sub">כולם כבר נכנסו.</p>')+'<div class="btns"><button class="bs">סגירה</button></div>');b.querySelector(".bs").onclick=closePop};
+  var h=el.querySelector("#aHere");if(h)h.onclick=async function(){var s=h.lastChild;s.textContent="רגע…";var p=await getPos();if(!p){s.textContent="אין גישה למיקום";return}
+    D.office=Object.assign({},D.office,{lat:p.lat,lng:p.lng});var r=await sb.from("settings").update({value:D.office}).eq("key","office");s.textContent=r.error?"לא נשמר":"נקבע מכאן";toast(r.error?errMsg(r.error):"מיקום המשרד נשמר")}}
+
+/* team: the whole week as one board */
+var weekOff=0;
+function cellOf(e,g){var p=punchOf(e.id,g),today=iso(new Date()),v=D.reqs.find(function(r){return r.emp===e.id&&(r.type==="vac"||r.type==="sick")&&r.status==="ok"&&r.from<=g&&r.to>=g});
+  if(e.start&&g<e.start)return '<span class="c e"></span>';
+  if(v)return '<span class="c v">'+(v.type==="sick"?"מחלה":"חופש")+"</span>";
+  if(p)return '<span class="c'+(p.pending?" w":"")+'">'+p.in+"<br>"+(p.out||"·")+"</span>";
+  return '<span class="c e">'+(g<today?"–":"")+"</span>"}
+function viewTeam(){var s=addDays(sundayOf(new Date()),weekOff*7),today=iso(new Date()),days=[0,1,2,3,4].map(function(i){return addDays(s,i)});
+  var lab=weekOff===0?"השבוע":weekOff===-1?"שבוע שעבר":"";var rng=days[0].getDate()+"–"+days[4].getDate()+" ב"+HEB_MONTHS[days[4].getMonth()];
+  var inNow=D.emps.filter(function(e){var p=punchOf(e.id,today);return p&&!p.out}).length;
+  return '<div class="tw"><div class="tw-h"><div><h1>צוות</h1><span class="sub">'+(lab?lab+" · ":"")+rng+'</span></div><div class="wnav"><button type="button" id="wPrev" aria-label="שבוע קודם"><svg><use href="#i-prev"/></svg></button><button type="button" id="wNext" aria-label="שבוע הבא"'+(weekOff>=0?" disabled":"")+'><svg><use href="#i-next"/></svg></button></div></div>'+
+    (weekOff===0?'<p class="tw-now"><b>'+inNow+'</b> מתוך '+D.emps.length+" בעבודה עכשיו</p>":"")+
+    '<div class="wgrid"><span></span>'+days.map(function(d){return '<span class="h'+(iso(d)===today?" t":"")+'">'+HEB_DAYS[d.getDay()].slice(0,1)+"׳ "+d.getDate()+"</span>"}).join("")+
+    D.emps.map(function(e){return '<button type="button" class="wn" data-emp="'+e.id+'"><span class="av '+e.cls+'">'+esc(e.name[0])+"</span>"+esc(e.name)+"</button>"+days.map(function(d){var g=iso(d);return g===today?cellOf(e,g).replace('class="c','class="c t'):cellOf(e,g)}).join("")}).join("")+
+    '</div><p class="tw-key">לחיצה על שם פותחת את הפרטים שלו</p></div>'}
+
+/* approvals: one card per request */
+function viewApprove(){var pend=D.reqs.filter(function(r){return r.status==="pending"}).sort(function(a,b){return a.created<b.created?-1:1}),done=D.reqs.filter(function(r){return r.status!=="pending"&&r.type!=="sick"}).slice(-5).reverse();
+  function card(r){var e=emp(r.emp),title,small,kind;
+    if(r.type==="fix"){kind="תיקון שעות · "+HEB_DAYS[parse(r.date).getDay()]+", "+nice(r.date);title='<span class="ltr">'+(r.inT||"")+" – "+(r.outT||"")+"</span>";small=r.oldOut?"היה רשום "+(r.oldIn||"")+" – "+r.oldOut:(r.oldIn?"נכנס ב־"+r.oldIn+", בלי יציאה":"")}
+    else{kind="בקשת חופשה";title=r.from===r.to?nice(r.from):nice(r.from)+" עד "+nice(r.to);small=r.days+" ימי עבודה · נשארו "+(e.vac-vacUsed(e.id))}
+    return '<article class="rq-card"><div class="rq-who"><span class="av '+e.cls+'">'+esc(e.name[0])+'</span><div><b>'+esc(e.name)+"</b><small>"+kind+"</small></div>"+(r.late?'<span class="badge wait">מאוחר</span>':"")+'</div>'+
+      '<div class="rq-what">'+title+(small?"<small>"+esc(small)+"</small>":"")+(r.note?'<small class="q">"'+esc(r.note)+'"</small>':"")+'</div>'+
+      '<div class="rq-btns"><button type="button" class="bs2" data-no="'+r.id+'">לא עכשיו</button><button type="button" class="bp2" data-ok="'+r.id+'">אישור</button></div></article>'}
+  return '<div class="ap"><h1>לאישור</h1><span class="sub">'+(pend.length?(pend.length===1?"בקשה אחת מחכה":pend.length+" בקשות מחכות"):"הכול טופל")+"</span>"+
+    (pend.length?pend.map(card).join(""):'<p class="ap-empty">כשעדי, שלו או צפריר יבקשו חופשה או תיקון שעות, זה יופיע כאן.</p>')+
+    (done.length?'<p class="hd">טופלו לאחרונה</p><div class="ap-done">'+done.map(function(r){var e=emp(r.emp);return '<div class="ap-row"><span>'+esc(e.name)+" · "+reqLabel(r)+"</span>"+statusBadge(r)+"</div>"}).join("")+"</div>":"")+"</div>"}
+
+document.addEventListener("click",function(e){if(e.target.closest("#wPrev")){weekOff--;render("a-tr")}else if(e.target.closest("#wNext")&&weekOff<0){weekOff++;render("a-tl")}});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"){var f=$("#fullmenu");if(f){f.classList.remove("show");setTimeout(function(){f.remove()},320)}}});
+
+/* report: hours bars against the month's target (Sun–Thu, minus holidays, 9 hours a day) */
+var DAY_H=9;
+function closedDay(d){var h=heb(d),m=h.m,x=h.d;
+  return (m==="Tishri"&&(x===1||x===2||x===10||x===15||x===22))||(m==="Nisan"&&(x===15||x===21))||(m==="Sivan"&&x===6)||(m==="Iyar"&&x===5)}
+function targetDays(e,y,m,upto){var n=0,d=new Date(y,m,1,12),end=new Date(y,m+1,0,12);if(upto&&upto<end)end=upto;
+  while(d<=end){var g=iso(d);if(isWork(d)&&!closedDay(d)&&!(e.start&&g<e.start))n++;d=addDays(d,1)}return n}
+function hhmm(min){return Math.floor(min/60)+":"+pad(Math.round(min%60))}
+function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(),now.getMonth()];var y=repMonth[0],m=repMonth[1],pre=y+"-"+pad(m+1),cur=(y===now.getFullYear()&&m===now.getMonth());
+  var rows=D.emps.map(function(e){var ps=D.punches.filter(function(p){return p.emp===e.id&&p.date.slice(0,7)===pre&&p.out}).sort(function(a,b){return a.date<b.date?-1:1});
+    var mn=ps.reduce(function(s,p){return s+Math.max(0,mins(p.out)-mins(p.in))},0);
+    function cnt(t){return D.reqs.filter(function(r){return r.emp===e.id&&r.type===t&&(t==="sick"||r.status==="ok")}).reduce(function(s,r){var n=0,d=parse(r.from),z=parse(r.to);while(d<=z){if(iso(d).slice(0,7)===pre&&isWork(d)&&!closedDay(d))n++;d=addDays(d,1)}return s+n},0)}
+    var vac=cnt("vac"),sick=cnt("sick"),tgt=targetDays(e,y,m)*DAY_H*60,now2=cur?targetDays(e,y,m,now)*DAY_H*60:tgt,off=(vac+sick)*DAY_H*60;
+    return {e:e,ps:ps,mn:mn,vac:vac,sick:sick,tgt:tgt,now:now2,off:off}});
+  var tot=rows.reduce(function(s,r){return s+r.mn},0);
+  function pct(v,t){return t?Math.min(100,v/t*100):0}
+  return '<div class="rp"><div class="rp-m"><button type="button" id="mPrev" aria-label="החודש הקודם"><svg><use href="#i-prev"/></svg></button><b>'+HEB_MONTHS[m]+" "+y+'</b><button type="button" id="mNext" aria-label="החודש הבא"><svg><use href="#i-next"/></svg></button></div>'+
+    '<div class="rp-tot"><span>סה״כ שעות '+(cur?"עד היום":"בחודש")+'</span><b class="ltr">'+hhmm(tot)+'</b><small>יום מלא = '+DAY_H+' שעות · ראשון עד חמישי, בלי חגים</small></div>'+
+    rows.map(function(r){var w=pct(r.mn,r.tgt),o=Math.min(100-w,pct(r.off,r.tgt)),mk=cur?pct(r.now,r.tgt):0;
+      return '<div class="rp-p"><div class="rp-t"><span class="av '+r.e.cls+'">'+esc(r.e.name[0])+'</span><b>'+esc(r.e.name)+'</b><span class="ltr rp-h">'+hhmm(r.mn)+' <i>/ '+Math.round(r.tgt/60)+"</i></span></div>"+
+        '<div class="rp-bar"><i style="width:'+w+'%"></i><i class="v" style="width:'+o+'%"></i>'+(cur&&mk<100?'<em style="right:'+mk+'%"></em>':"")+"</div>"+
+        '<div class="rp-s"><span><b>'+r.ps.length+"</b> ימי עבודה</span><span><b>"+r.vac+"</b> חופשה</span><span><b>"+r.sick+'</b> מחלה</span><button class="exp" type="button" data-exp="'+r.e.id+'">פירוט</button></div>'+
+        '<div hidden id="x'+r.e.id+'">'+(r.ps.length?r.ps.map(function(p){return '<div class="drow"><span>'+HEB_DAYS[parse(p.date).getDay()].slice(0,1)+"׳ "+parse(p.date).getDate()+'</span><span class="nn">'+esc(p.note||(p.inLoc==="out"?"מחוץ למשרד":""))+'</span><span class="tt">'+p.in+"–"+p.out+" · "+dur(mins(p.out)-mins(p.in))+"</span></div>"}).join(""):'<p class="sub">אין ימים בחודש הזה</p>')+"</div></div>"}).join("")+
+    '<div class="rp-key"><span><i></i>שעות עבודה</span><span><i class="v"></i>חופשה ומחלה</span>'+(cur?'<span><i class="m"></i>איפה אמורים להיות היום</span>':"")+'</div>'+
+    '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:6px">ייצוא לאקסל</button></div>'}
