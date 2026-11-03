@@ -132,7 +132,7 @@ function navHtml(){var L={today:["היום","i-clock"],week:["השבוע","i-lis
 
 /* ---------- account menu (top chip) ---------- */
 function isStandalone(){return matchMedia("(display-mode: standalone)").matches||navigator.standalone===true}
-var APP_VERSION=10;
+var APP_VERSION=11;
 var TL={today:["היום","i-clock"],week:["השבוע","i-list"],vac:["חופשות","i-sun"],team:["צוות","i-team"],approve:["לאישור","i-check"],report:["דוח חודשי","i-chart"]};
 function pendingCount(){return isMgr()?D.reqs.filter(function(r){return r.status==="pending"}).length:0}
 function accountDialog(){var m=emp(me()),pend=pendingCount();
@@ -198,7 +198,7 @@ async function start(){var s=await sb.auth.getSession();if(!s.data.session){logi
   await loadWeather();tab="today";started=true;render("a-load");geocodeOffice()}
 document.addEventListener("click",function(e){var t=e.target.closest("[data-tab]");if(t){var order=tabOrder(),a=order.indexOf(tab),b=order.indexOf(t.dataset.tab);if(t.dataset.tab===tab)return;tab=t.dataset.tab;render(b>a?"a-tl":"a-tr");return}
   var ok=e.target.closest("[data-ok]");if(ok){decide(ok.dataset.ok,true);return}var no=e.target.closest("[data-no]");if(no){decide(no.dataset.no,false);return}
-  var ex=e.target.closest("[data-exp]");if(ex){var box=$("#x"+ex.dataset.exp);box.hidden=!box.hidden;ex.textContent=box.hidden?"פירוט לפי ימים":"הסתרת הפירוט";return}
+  var ex=e.target.closest("[data-exp]");if(ex){var box=$("#x"+ex.dataset.exp);box.hidden=!box.hidden;if(ex.classList.contains("exp"))ex.textContent=box.hidden?"פירוט לפי ימים":"הסתרת הפירוט";return}
   if(e.target.closest("#mPrev")){repMonth[1]--;if(repMonth[1]<0){repMonth[1]=11;repMonth[0]--}render("a-tr");return}
   if(e.target.closest("#mNext")){repMonth[1]++;if(repMonth[1]>11){repMonth[1]=0;repMonth[0]++}render("a-tl");return}
   if(e.target.closest("#xls")){exportCsv();return}
@@ -217,7 +217,7 @@ if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceW
 start();
 
 /* ================= chosen designs: full-screen menu · weekly team board · request cards ================= */
-APP_VERSION=10;
+APP_VERSION=11;
 function accountDialog(){var m=emp(me()),pend=pendingCount(),off=D.office||{},codes=isMgr()?D.all.filter(function(e){return e.code}):[];
   var old=$("#fullmenu");if(old)old.remove();
   var el=document.createElement("div");el.id="fullmenu";el.className="fm";el.setAttribute("role","dialog");el.setAttribute("aria-label","תפריט");
@@ -253,7 +253,7 @@ function viewTeam(){var s=addDays(sundayOf(new Date()),weekOff*7),today=iso(new 
   return '<div class="tw"><div class="tw-h"><div><h1>צוות</h1><span class="sub">'+(lab?lab+" · ":"")+rng+'</span></div><div class="wnav"><button type="button" id="wPrev" aria-label="שבוע קודם"><svg><use href="#i-prev"/></svg></button><button type="button" id="wNext" aria-label="שבוע הבא"'+(weekOff>=0?" disabled":"")+'><svg><use href="#i-next"/></svg></button></div></div>'+
     (weekOff===0?'<p class="tw-now"><b>'+inNow+'</b> מתוך '+D.emps.length+" בעבודה עכשיו</p>":"")+
     '<div class="wgrid"><span></span>'+days.map(function(d){return '<span class="h'+(iso(d)===today?" t":"")+'">'+HEB_DAYS[d.getDay()].slice(0,1)+"׳ "+d.getDate()+"</span>"}).join("")+
-    D.emps.map(function(e){return '<button type="button" class="wn" data-emp="'+e.id+'"><span class="av '+e.cls+'">'+esc(e.name[0])+"</span>"+esc(e.name)+"</button>"+days.map(function(d){var g=iso(d);return g===today?cellOf(e,g).replace('class="c','class="c t'):cellOf(e,g)}).join("")}).join("")+
+    D.emps.map(function(e){return '<button type="button" class="wn" data-emp="'+e.id+'"><i class="pd '+e.cls+'"></i>'+esc(e.name)+"</button>"+days.map(function(d){var g=iso(d);return g===today?cellOf(e,g).replace('class="c','class="c t'):cellOf(e,g)}).join("")}).join("")+
     '</div><p class="tw-key">לחיצה על שם פותחת את הפרטים שלו</p></div>'}
 
 /* approvals: one card per request */
@@ -261,7 +261,7 @@ function viewApprove(){var pend=D.reqs.filter(function(r){return r.status==="pen
   function card(r){var e=emp(r.emp),title,small,kind;
     if(r.type==="fix"){kind="תיקון שעות · "+HEB_DAYS[parse(r.date).getDay()]+", "+nice(r.date);title='<span class="ltr">'+(r.inT||"")+" – "+(r.outT||"")+"</span>";small=r.oldOut?"היה רשום "+(r.oldIn||"")+" – "+r.oldOut:(r.oldIn?"נכנס ב־"+r.oldIn+", בלי יציאה":"")}
     else{kind="בקשת חופשה";title=r.from===r.to?nice(r.from):nice(r.from)+" עד "+nice(r.to);small=r.days+" ימי עבודה · נשארו "+(e.vac-vacUsed(e.id))}
-    return '<article class="rq-card"><div class="rq-who"><span class="av '+e.cls+'">'+esc(e.name[0])+'</span><div><b>'+esc(e.name)+"</b><small>"+kind+"</small></div>"+(r.late?'<span class="badge wait">מאוחר</span>':"")+'</div>'+
+    return '<article class="rq-card"><div class="rq-who"><i class="pd '+e.cls+'"></i><div><b>'+esc(e.name)+"</b><small>"+kind+"</small></div>"+(r.late?'<span class="badge wait">מאוחר</span>':"")+'</div>'+
       '<div class="rq-what">'+title+(small?"<small>"+esc(small)+"</small>":"")+(r.note?'<small class="q">"'+esc(r.note)+'"</small>':"")+'</div>'+
       '<div class="rq-btns"><button type="button" class="bs2" data-no="'+r.id+'">לא עכשיו</button><button type="button" class="bp2" data-ok="'+r.id+'">אישור</button></div></article>'}
   return '<div class="ap"><h1>לאישור</h1><span class="sub">'+(pend.length?(pend.length===1?"בקשה אחת מחכה":pend.length+" בקשות מחכות"):"הכול טופל")+"</span>"+
@@ -286,12 +286,10 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     return {e:e,ps:ps,mn:mn,vac:vac,sick:sick,tgt:tgt,now:now2,off:off}});
   var tot=rows.reduce(function(s,r){return s+r.mn},0);
   function pct(v,t){return t?Math.min(100,v/t*100):0}
-  return '<div class="rp"><div class="rp-m"><button type="button" id="mPrev" aria-label="החודש הקודם"><svg><use href="#i-prev"/></svg></button><b>'+HEB_MONTHS[m]+" "+y+'</b><button type="button" id="mNext" aria-label="החודש הבא"><svg><use href="#i-next"/></svg></button></div>'+
-    '<div class="rp-tot"><span>סה״כ שעות '+(cur?"עד היום":"בחודש")+'</span><b class="ltr">'+hhmm(tot)+'</b><small>יום מלא = '+DAY_H+' שעות · ראשון עד חמישי, בלי חגים</small></div>'+
+  return '<div class="rp"><div class="rp-m"><button type="button" id="mPrev" aria-label="החודש הקודם"><svg><use href="#i-prev"/></svg></button><div class="rp-mt"><b>'+HEB_MONTHS[m]+" "+y+'</b><span>'+hhmm(tot)+' שעות '+(cur?"עד היום":"בחודש")+'</span></div><button type="button" id="mNext" aria-label="החודש הבא"><svg><use href="#i-next"/></svg></button></div>'+
     rows.map(function(r){var w=pct(r.mn,r.tgt),o=Math.min(100-w,pct(r.off,r.tgt)),mk=cur?pct(r.now,r.tgt):0;
-      return '<div class="rp-p"><div class="rp-t"><span class="av '+r.e.cls+'">'+esc(r.e.name[0])+'</span><b>'+esc(r.e.name)+'</b><span class="ltr rp-h">'+hhmm(r.mn)+' <i>/ '+Math.round(r.tgt/60)+"</i></span></div>"+
+      return '<div class="rp-p"><button type="button" class="rp-t" data-exp="'+r.e.id+'"><i class="pd '+r.e.cls+'"></i><b>'+esc(r.e.name)+'</b><span class="rp-s">'+r.ps.length+" ימים · "+r.vac+" חופשה · "+r.sick+' מחלה</span><span class="ltr rp-h">'+hhmm(r.mn)+'<i> / '+Math.round(r.tgt/60)+"</i></span></button>"+
         '<div class="rp-bar"><i style="width:'+w+'%"></i><i class="v" style="width:'+o+'%"></i>'+(cur&&mk<100?'<em style="right:'+mk+'%"></em>':"")+"</div>"+
-        '<div class="rp-s"><span><b>'+r.ps.length+"</b> ימי עבודה</span><span><b>"+r.vac+"</b> חופשה</span><span><b>"+r.sick+'</b> מחלה</span><button class="exp" type="button" data-exp="'+r.e.id+'">פירוט</button></div>'+
         '<div hidden id="x'+r.e.id+'">'+(r.ps.length?r.ps.map(function(p){return '<div class="drow"><span>'+HEB_DAYS[parse(p.date).getDay()].slice(0,1)+"׳ "+parse(p.date).getDate()+'</span><span class="nn">'+esc(p.note||(p.inLoc==="out"?"מחוץ למשרד":""))+'</span><span class="tt">'+p.in+"–"+p.out+" · "+dur(mins(p.out)-mins(p.in))+"</span></div>"}).join(""):'<p class="sub">אין ימים בחודש הזה</p>')+"</div></div>"}).join("")+
-    '<div class="rp-key"><span><i></i>שעות עבודה</span><span><i class="v"></i>חופשה ומחלה</span>'+(cur?'<span><i class="m"></i>איפה אמורים להיות היום</span>':"")+'</div>'+
-    '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:6px">ייצוא לאקסל</button></div>'}
+    '<div class="rp-key"><span><i></i>שעות</span><span><i class="v"></i>חופשה ומחלה</span>'+(cur?'<span><i class="m"></i>איפה אמורים להיות היום</span>':"")+'<span>יום מלא '+DAY_H+' שעות</span></div>'+
+    '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
