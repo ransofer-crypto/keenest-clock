@@ -2119,7 +2119,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=14;
+APP_VERSION=15;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
@@ -2130,16 +2130,20 @@ function bindSlide(){var slide=$("#slide"),knob=$("#knob"),lbl=$("#slbl"),sky=$(
   var exit=slide.classList.contains("exit"),drag=null,R=exit?RAMP_OUT:RAMP_IN;
   if(exit){knob.querySelector(".k1").innerHTML='<use href="#i-sun"/>';knob.querySelector(".k2").innerHTML='<use href="#i-moon"/>'}
   function max(){return slide.clientWidth-60}
-  function paint(d){var p=Math.max(0,Math.min(1,d/max()));knob.style.transform="translateX("+(-d)+"px)";lbl.style.opacity=String(Math.max(0,1-p*3));lbl.style.color=p>0.02?"rgb(255 255 255 / .85)":"";
-    var c=rampAt(R,p),c2=rampAt(R,Math.max(0,p-.28));sky.style.opacity=p>0?1:0;sky.style.background="linear-gradient(270deg,rgb("+c2+") 0%,rgb("+c+") 100%)";
+  /* the knob follows the finger; the colors follow the knob with a soft lag, so fast moves still blend slowly */
+  var cur=0,target=0,raf=0,last=0;
+  function colors(p){lbl.style.opacity=String(Math.max(0,1-p*3));lbl.style.color=p>0.02?"rgb(255 255 255 / .85)":"";
+    var c=rampAt(R,p),c2=rampAt(R,Math.max(0,p-.28));sky.style.opacity=String(Math.min(1,p*12));sky.style.background="linear-gradient(270deg,rgb("+c2+") 0%,rgb("+c+") 100%)";
     var q1=Math.max(0,Math.min(1,(.54-p)/.14)),q2=Math.max(0,Math.min(1,(p-.46)/.14));knob.querySelector(".k1").style.opacity=String(q1);knob.querySelector(".k1").style.transform="rotate("+(-p*90)+"deg) scale("+(.7+.3*q1)+")";knob.querySelector(".k2").style.opacity=String(q2);knob.querySelector(".k2").style.transform="rotate("+((1-p)*90)+"deg) scale("+(.7+.3*q2)+")";
     knob.style.setProperty("--kc","rgb("+c+")")}
-  paint(0);
+  function tick(t){var dt=last?Math.min(64,t-last)/1000:0.016;last=t;cur+=(target-cur)*(1-Math.exp(-dt/0.28));if(Math.abs(target-cur)<0.0015)cur=target;colors(cur);if(cur!==target)raf=requestAnimationFrame(tick);else{raf=0;last=0}}
+  function paint(d){target=Math.max(0,Math.min(1,d/max()));knob.style.transform="translateX("+(-d)+"px)";if(!raf)raf=requestAnimationFrame(tick)}
+  colors(0);knob.style.transform="translateX(0px)";
   knob.onpointerdown=function(e){if(busy)return;drag={x:e.clientX,d:0};knob.setPointerCapture(e.pointerId);knob.style.transition="none";sky.style.transition="none"};
   knob.onpointermove=function(e){if(!drag)return;drag.d=Math.max(0,Math.min(max(),drag.x-e.clientX));paint(drag.d)};
-  function settle(to,cb){var from=parseFloat((knob.style.transform.match(/-?[\d.]+/)||[0])[0])*-1||0,t0=performance.now(),dur=to>0?520:600;
-    (function step(){var u=Math.min(1,(performance.now()-t0)/dur),e2=1-Math.pow(1-u,3);paint(from+(to-from)*e2);if(u<1)requestAnimationFrame(step);else if(cb)cb()})()}
-  function finish(){var fc=rampAt(R,1);slide.classList.add("arrived");
+  function settle(to,cb){var from=parseFloat((knob.style.transform.match(/-?[\d.]+/)||[0])[0])*-1||0,t0=performance.now(),dur=to>0?560:750;
+    (function step(){var u=Math.min(1,(performance.now()-t0)/dur),e2=u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;paint(from+(to-from)*e2);if(u<1)requestAnimationFrame(step);else if(cb)cb()})()}
+  function finish(){if(cur<.995){setTimeout(finish,40);return}var fc=rampAt(R,1);slide.classList.add("arrived");
     sky.style.transition="background .7s cubic-bezier(.32,.72,0,1)";sky.style.background="rgb("+fc+")";
     lbl.style.transition="opacity .35s ease";lbl.style.opacity="0";
     setTimeout(function(){lbl.textContent=partOfDay();lbl.style.color="#fff";lbl.style.opacity="1"},360);
