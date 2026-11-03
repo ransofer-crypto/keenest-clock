@@ -282,6 +282,9 @@ body{height:100%;overflow-y:auto;overscroll-behavior:none;-webkit-overflow-scrol
 .mwho .av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700}
 /* iOS 26 home-screen app: with the translucent status bar the viewport comes up short by the status-bar height (WebKit bug 301108); a taller html makes iOS give the page the full screen */
 @media (display-mode: standalone){html{height:auto;min-height:min(100lvh,calc(100% + env(safe-area-inset-top,0px)))}body{height:min(100lvh,calc(100vh + env(safe-area-inset-top,0px)))}}
+/* a little more air above the header and the greeting */
+header.top{margin-top:14px}
+.mock .d{margin-top:30px}
 /* manager avatars, same colors as the work board */
 .av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
 .av.z{background:linear-gradient(135deg,#4CC98A,#1F8A55);color:#fff}
@@ -1738,7 +1741,7 @@ async function loadAll(){
   D.all=res[0].data.map(function(x){return {id:x.id,name:x.name,cls:x.cls||"a",start:x.start_date||"",birthday:x.birthday||"",vac:x.vac_per_year,role:x.role,email:x.email,code:x.invite_code}});
   D.all.sort(function(a,b){return a.role===b.role?(a.name<b.name?-1:1):(a.role==="employee"?-1:1)});
   D.emps=D.all.slice();
-  D.punches=res[1].data.map(function(p){return {id:p.id,emp:p.emp,date:p.day,in:t5(p.in_time),out:t5(p.out_time),inLoc:p.in_loc||"",outLoc:p.out_loc||"",note:p.note||"",pending:p.pending}});
+  D.punches=res[1].data.filter(function(p){return p.in_time}).map(function(p){return {id:p.id,emp:p.emp,date:p.day,in:t5(p.in_time),out:t5(p.out_time),inLoc:p.in_loc||"",outLoc:p.out_loc||"",note:p.note||"",pending:p.pending}});
   D.reqs=res[2].data.map(function(r){return {id:r.id,emp:r.emp,type:r.type,from:r.from_date,to:r.to_date,days:r.days,status:r.status,late:r.late,note:r.note||"",date:r.fix_day,inT:t5(r.fix_in),outT:t5(r.fix_out),oldIn:t5(r.old_in),oldOut:t5(r.old_out),created:(r.created_at||"").slice(0,10)}});
   D.settings={};res[3].data.forEach(function(s){D.settings[s.key]=s.value});
   D.office=D.settings.office||{};D.oscar=D.settings.oscar||"";
@@ -1841,7 +1844,7 @@ function navHtml(){var L={today:["היום","i-clock"],week:["השבוע","i-lis
 
 /* ---------- account menu (top chip) ---------- */
 function isStandalone(){return matchMedia("(display-mode: standalone)").matches||navigator.standalone===true}
-var APP_VERSION=7;
+var APP_VERSION=8;
 var TL={today:["היום","i-clock"],week:["השבוע","i-list"],vac:["חופשות","i-sun"],team:["צוות","i-team"],approve:["לאישור","i-check"],report:["דוח חודשי","i-chart"]};
 function pendingCount(){return isMgr()?D.reqs.filter(function(r){return r.status==="pending"}).length:0}
 function accountDialog(){var m=emp(me()),pend=pendingCount();
@@ -1852,6 +1855,7 @@ function accountDialog(){var m=emp(me()),pend=pendingCount();
     (isStandalone()?"":'<p class="lbl2">להוספה למסך הבית</p><p class="sub">באייפון: לחיצה על כפתור השיתוף בספארי ואז על "הוספה למסך הבית". מעכשיו השעון ייפתח כמו אפליקציה.</p>')+
     (isMgr()?'<p class="lbl2">מיקום המשרד</p><p class="sub">'+esc(off.address||"")+(off.lat?" · נקבע":" · עוד לא נקבע")+'</p><button class="btn ghost" type="button" id="aHere" style="width:100%">אני במשרד עכשיו, קבע את המיקום מכאן</button>'+
       (codes?'<p class="lbl2" style="margin-top:12px">קודי הצטרפות למי שעוד לא נכנס</p>'+codes:""):"")+
+    (isMgr()?'<div class="mlist" style="margin-top:12px"><button type="button" id="aReset"><svg><use href="#i-clock"/></svg>איפוס הכניסה והיציאה שלי היום</button></div>':"")+
     '<div class="mlist" style="margin-top:12px"><button type="button" class="red" id="aOut"><svg><use href="#i-out"/></svg>התנתקות</button></div>'+
     '<p class="sub" id="aVer" style="text-align:center;margin-top:10px">גרסה '+APP_VERSION+'</p><div class="btns"><button class="bs">ביטול</button></div>');
   b.querySelector(".bs").onclick=closePop;
@@ -1860,6 +1864,7 @@ function accountDialog(){var m=emp(me()),pend=pendingCount();
     this.textContent="גרסה "+APP_VERSION+" · מסך "+screen.width+"×"+screen.height+" · חלון "+innerWidth+"×"+innerHeight+" · vv "+Math.round(visualViewport?visualViewport.height:0)+" · html "+document.documentElement.clientHeight+" · fixed "+Math.round(t.getBoundingClientRect().height)+" · top "+ps.paddingTop+" · bottom "+ps.paddingBottom+" · "+(isStandalone()?"app":"safari");t.remove();pr.remove()};
   b.querySelectorAll("[data-go]").forEach(function(x){x.onclick=function(){var k=x.dataset.go;closePop();if(k===tab)return;var o=tabOrder(),a=o.indexOf(tab),c=o.indexOf(k);tab=k;render(c>a?"a-tl":"a-tr")}});
   b.querySelector("#aOut").onclick=async function(){closePop();await sb.auth.signOut();location.reload()};
+  var rs=b.querySelector("#aReset");if(rs)rs.onclick=async function(){closePop();try{await rpc("reset_my_day");D.dayNote="";FX.stop();tab="today";await refresh();toast("היום שלך אופס. אפשר להיכנס שוב")}catch(e){toast(errMsg(e))}};
   var h=b.querySelector("#aHere");if(h)h.onclick=async function(){h.textContent="רגע…";var p=await getPos();if(!p){h.textContent="לא הצלחתי לקבל מיקום. צריך לאשר גישה למיקום";return}
     D.office=Object.assign({},D.office,{lat:p.lat,lng:p.lng});var r=await sb.from("settings").update({value:D.office}).eq("key","office");closePop();toast(r.error?errMsg(r.error):"מיקום המשרד נשמר")}}
 
