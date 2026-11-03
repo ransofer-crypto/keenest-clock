@@ -35,9 +35,8 @@ body{height:100%;overflow-y:auto;overscroll-behavior:none;-webkit-overflow-scrol
 .mlist button.red{color:var(--k-pink)}.mlist button.red svg{color:var(--k-pink)}
 .mwho{display:flex;align-items:center;gap:10px;margin-bottom:4px}
 .mwho .av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700}
-/* home-screen app: the page sits under the status bar, so the backdrop must reach the bottom edge too */
-#cv{bottom:auto;height:max(calc(100% + env(safe-area-inset-top,0px)),100lvh)}
-.veil{bottom:auto;height:calc(max(calc(100% + env(safe-area-inset-top,0px)),100lvh) + 80px)}
+/* iOS 26 home-screen app: with the translucent status bar the viewport comes up short by the status-bar height (WebKit bug 301108); a taller html makes iOS give the page the full screen */
+@media (display-mode: standalone){html{height:auto;min-height:min(100lvh,calc(100% + env(safe-area-inset-top,0px)))}}
 /* manager avatars, same colors as the work board */
 .av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
 .av.z{background:linear-gradient(135deg,#4CC98A,#1F8A55);color:#fff}

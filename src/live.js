@@ -128,7 +128,7 @@ function navHtml(){var L={today:["היום","i-clock"],week:["השבוע","i-lis
 
 /* ---------- account menu (top chip) ---------- */
 function isStandalone(){return matchMedia("(display-mode: standalone)").matches||navigator.standalone===true}
-var APP_VERSION=6;
+var APP_VERSION=7;
 var TL={today:["היום","i-clock"],week:["השבוע","i-list"],vac:["חופשות","i-sun"],team:["צוות","i-team"],approve:["לאישור","i-check"],report:["דוח חודשי","i-chart"]};
 function pendingCount(){return isMgr()?D.reqs.filter(function(r){return r.status==="pending"}).length:0}
 function accountDialog(){var m=emp(me()),pend=pendingCount();
