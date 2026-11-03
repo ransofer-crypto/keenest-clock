@@ -139,6 +139,13 @@ header.top{margin-top:14px}
 .rp-bar i:first-child{border-radius:0 3px 3px 0}
 .rp-bar em{top:-3px;bottom:-3px}
 .rp-key{padding:10px 2px 0;font-size:11.5px}
+/* sunrise slider */
+.slide .sky{position:absolute;inset:0;opacity:0;pointer-events:none}
+.slide .orb{position:absolute;left:50%;bottom:-18px;width:38px;height:38px;margin-left:-19px;border-radius:50%;opacity:0;pointer-events:none;background:radial-gradient(circle,#fff 0%,#FFD9E8 30%,rgb(250 22 100 / .55) 55%,rgb(250 22 100 / 0) 72%)}
+.slide .lbl{position:relative;z-index:1}
+.knob,.slide.exit .knob{background:#fff;box-shadow:0 4px 14px rgb(0 32 63 / .22);z-index:2}
+.knob svg,.slide.exit .knob svg{position:absolute;width:22px;height:22px;stroke:var(--kc,#00203F);fill:none;stroke-width:1.9;transition:none}
+.slide.arrived .knob{box-shadow:0 0 0 6px rgb(255 255 255 / .25),0 4px 14px rgb(0 32 63 / .22)}
 /* manager avatars, same colors as the work board */
 .av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
 .av.z{background:linear-gradient(135deg,#4CC98A,#1F8A55);color:#fff}
