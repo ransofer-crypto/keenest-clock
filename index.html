@@ -281,7 +281,8 @@ body{height:100%;overflow-y:auto;overscroll-behavior:none;-webkit-overflow-scrol
 .mwho{display:flex;align-items:center;gap:10px;margin-bottom:4px}
 .mwho .av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700}
 /* home-screen app: the page sits under the status bar, so the backdrop must reach the bottom edge too */
-#cv,.veil{bottom:auto;height:calc(100% + env(safe-area-inset-top,0px))}
+#cv{bottom:auto;height:max(calc(100% + env(safe-area-inset-top,0px)),100lvh)}
+.veil{bottom:auto;height:calc(max(calc(100% + env(safe-area-inset-top,0px)),100lvh) + 80px)}
 /* manager avatars, same colors as the work board */
 .av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
 .av.z{background:linear-gradient(135deg,#4CC98A,#1F8A55);color:#fff}
@@ -1861,9 +1862,10 @@ function accountDialog(){var m=emp(me()),pend=pendingCount();
 
 /* the phone's top strip follows the page color (plain, morning tint, evening dusk) */
 var BAR={light:{"":"#E6E9EC",in:"#C2E0EB",out:"#A1ADB8"},dark:{"":"#2F2F2F",in:"#274953",out:"#1A1E25"}};
+var FOOT={light:{"":"#E6E9EC",in:"#C2E0EB",out:"#E9DDD8"},dark:{"":"#2F2F2F",in:"#274953",out:"#4C3D35"}};
 function isDark(){var t=document.documentElement.getAttribute("data-theme");return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches}
 var veilNow="";
-function setVeil(c){veilNow=c||"";var el=$("#veil");el.className="veil"+(c?" "+c:"");var m=$("#tcolor");if(m)m.setAttribute("content",BAR[isDark()?"dark":"light"][veilNow])}
+function setVeil(c){veilNow=c||"";var el=$("#veil");el.className="veil"+(c?" "+c:"");var k=isDark()?"dark":"light",m=$("#tcolor");if(m)m.setAttribute("content",BAR[k][veilNow]);document.documentElement.style.backgroundColor=FOOT[k][veilNow]}
 var _render=render;render=function(dir){_render(dir);var d=$("#mdot");if(d)d.hidden=!pendingCount()};
 
 /* ---------- login ---------- */

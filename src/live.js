@@ -148,9 +148,10 @@ function accountDialog(){var m=emp(me()),pend=pendingCount();
 
 /* the phone's top strip follows the page color (plain, morning tint, evening dusk) */
 var BAR={light:{"":"#E6E9EC",in:"#C2E0EB",out:"#A1ADB8"},dark:{"":"#2F2F2F",in:"#274953",out:"#1A1E25"}};
+var FOOT={light:{"":"#E6E9EC",in:"#C2E0EB",out:"#E9DDD8"},dark:{"":"#2F2F2F",in:"#274953",out:"#4C3D35"}};
 function isDark(){var t=document.documentElement.getAttribute("data-theme");return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches}
 var veilNow="";
-function setVeil(c){veilNow=c||"";var el=$("#veil");el.className="veil"+(c?" "+c:"");var m=$("#tcolor");if(m)m.setAttribute("content",BAR[isDark()?"dark":"light"][veilNow])}
+function setVeil(c){veilNow=c||"";var el=$("#veil");el.className="veil"+(c?" "+c:"");var k=isDark()?"dark":"light",m=$("#tcolor");if(m)m.setAttribute("content",BAR[k][veilNow]);document.documentElement.style.backgroundColor=FOOT[k][veilNow]}
 var _render=render;render=function(dir){_render(dir);var d=$("#mdot");if(d)d.hidden=!pendingCount()};
 
 /* ---------- login ---------- */
