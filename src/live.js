@@ -128,6 +128,7 @@ function navHtml(){var L={today:["היום","i-clock"],week:["השבוע","i-lis
 
 /* ---------- account menu (top chip) ---------- */
 function isStandalone(){return matchMedia("(display-mode: standalone)").matches||navigator.standalone===true}
+var APP_VERSION=5;
 var TL={today:["היום","i-clock"],week:["השבוע","i-list"],vac:["חופשות","i-sun"],team:["צוות","i-team"],approve:["לאישור","i-check"],report:["דוח חודשי","i-chart"]};
 function pendingCount(){return isMgr()?D.reqs.filter(function(r){return r.status==="pending"}).length:0}
 function accountDialog(){var m=emp(me()),pend=pendingCount();
@@ -139,7 +140,7 @@ function accountDialog(){var m=emp(me()),pend=pendingCount();
     (isMgr()?'<p class="lbl2">מיקום המשרד</p><p class="sub">'+esc(off.address||"")+(off.lat?" · נקבע":" · עוד לא נקבע")+'</p><button class="btn ghost" type="button" id="aHere" style="width:100%">אני במשרד עכשיו, קבע את המיקום מכאן</button>'+
       (codes?'<p class="lbl2" style="margin-top:12px">קודי הצטרפות למי שעוד לא נכנס</p>'+codes:""):"")+
     '<div class="mlist" style="margin-top:12px"><button type="button" class="red" id="aOut"><svg><use href="#i-out"/></svg>התנתקות</button></div>'+
-    '<div class="btns"><button class="bs">ביטול</button></div>');
+    '<p class="sub" style="text-align:center;margin-top:10px">גרסה '+APP_VERSION+'</p><div class="btns"><button class="bs">ביטול</button></div>');
   b.querySelector(".bs").onclick=closePop;
   b.querySelectorAll("[data-go]").forEach(function(x){x.onclick=function(){var k=x.dataset.go;closePop();if(k===tab)return;var o=tabOrder(),a=o.indexOf(tab),c=o.indexOf(k);tab=k;render(c>a?"a-tl":"a-tr")}});
   b.querySelector("#aOut").onclick=async function(){closePop();await sb.auth.signOut();location.reload()};
