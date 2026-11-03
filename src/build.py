@@ -51,7 +51,7 @@ pwa='''<!doctype html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="נוכחות">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#E6E9EC" id="tcolor">'''
 body=open(C+'body.html').read()
 parts=[pwa,'\n'.join(head),'<style>',open(C+'motion.css').read(),open(C+'dialog.css').read(),extra_css,'</style>','</head>','<body>',body,
