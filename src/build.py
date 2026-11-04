@@ -218,8 +218,8 @@ pwa='''<!doctype html>
 <meta charset="utf-8">
 <title>שעון נוכחות קינסט</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/clock-apple-180.png">
+<link rel="icon" type="image/png" href="icons/clock-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="נוכחות">

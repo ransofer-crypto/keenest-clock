@@ -1,6 +1,6 @@
 /* Keenest clock service worker: keeps the app shell for offline starts; always asks the server first. */
-const CACHE = "kclock-v5";
-const SHELL = ["./", "index.html", "supabase.js", "manifest.webmanifest", "icons/icon-192.png", "icons/apple-touch-icon.png"];
+const CACHE = "kclock-v6";
+const SHELL = ["./", "index.html", "supabase.js", "manifest.webmanifest", "icons/clock-192.png", "icons/clock-apple-180.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", (e) => {
@@ -10,6 +10,6 @@ self.addEventListener("fetch", (e) => {
 });
 self.addEventListener("push", (e) => {
   let d = {}; try { d = e.data.json(); } catch (_) {}
-  e.waitUntil(self.registration.showNotification(d.title || "שעון נוכחות", { body: d.body || "", icon: "icons/icon-192.png", badge: "icons/icon-192.png", lang: "he", dir: "rtl", data: { url: "./" } }));
+  e.waitUntil(self.registration.showNotification(d.title || "שעון נוכחות", { body: d.body || "", icon: "icons/clock-192.png", badge: "icons/clock-192.png", lang: "he", dir: "rtl", data: { url: "./" } }));
 });
 self.addEventListener("notificationclick", (e) => { e.notification.close(); e.waitUntil(clients.matchAll({ type: "window" }).then((cs) => cs.length ? cs[0].focus() : clients.openWindow("./"))); });
