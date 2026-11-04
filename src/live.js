@@ -57,6 +57,19 @@ async function act(){if(busy)return;var e=emp(me()),g=iso(new Date()),p=punchOf(
   if(!p){if(loc==="out"){var b=pop('<h3>אתה לא במשרד</h3><p>בטוח שאתה רוצה לעשות כניסה מכאן?</p><div class="btns"><button class="bp" id="goIn">כניסה בכל זאת</button><button class="bs">ביטול</button></div>');
       b.querySelector("#goIn").onclick=function(){closePop();clockIn(loc,pos)};b.querySelector(".bs").onclick=function(){closePop();render()};return}clockIn(loc,pos);return}
   if(loc==="out"){outAway(p,pos);return}clockOut(loc,pos,null)}
+/* ---------- notifications ---------- */
+function pushReady(){return "serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window}
+function b64u(s){var p="=".repeat((4-s.length%4)%4),b=atob((s+p).replace(/-/g,"+").replace(/_/g,"/")),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a}
+async function pushSubscribe(ask){if(!pushReady())return "unsupported";
+  var perm=Notification.permission;if(perm==="default"&&ask)perm=await Notification.requestPermission();if(perm!=="granted")return perm;
+  var reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();
+  if(!sub){var key=D.settings&&D.settings.vapid_public;if(!key)return "error";sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(key)})}
+  await rpc("save_push",{sub:sub.toJSON()});return "on"}
+function pushState(){if(!pushReady())return isStandalone()?"לא נתמך":"אחרי הוספה למסך הבית";var p=Notification.permission;return p==="granted"?"פעילות":p==="denied"?"חסומות בהגדרות":"כבויות"}
+function askPushOnce(){if(!pushReady()||!isStandalone()||Notification.permission!=="default"||ls("kc-push-asked"))return;ls("kc-push-asked","1");
+  setTimeout(function(){var b=pop('<h3>להפעיל התראות?</h3><p>'+(isMgr()?"תקבל תזכורת אם שכחת להיכנס או לצאת, והתראה כשמישהו מהצוות נכנס או יוצא מחוץ למשרד.":"תקבל תזכורת אם שכחת להיכנס או לצאת.")+'</p><div class="btns"><button class="bp" id="pOn">הפעלה</button><button class="bs">ביטול</button></div>');
+    b.querySelector(".bs").onclick=closePop;b.querySelector("#pOn").onclick=async function(){closePop();var r=await pushSubscribe(true).catch(function(){return "error"});if(r==="on")toast("ההתראות פעילות");else if(r==="denied")toast("ההתראות חסומות. אפשר להפעיל בהגדרות של האייפון")}},900)}
+
 /* clock-in moment, in the spirit of iPhone NameDrop: a colour glow wraps the screen edges and a soft light wave
    rises from the slider; everything it passes swells for an instant */
 function nameDrop(){if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
@@ -222,7 +235,7 @@ async function start(){var s=await sb.auth.getSession();if(!s.data.session){logi
   try{await loadAll()}catch(e){if(/JWT|jwt|401/.test(e.message||"")){await sb.auth.signOut();loginView();return}$("#view").innerHTML='<p class="empty">אין חיבור כרגע. נסה לרענן.</p>';return}
   if(!D.meId){$("#view").innerHTML='<p class="empty">המשתמש הזה לא מוגדר בשעון.</p>';return}
   D.dayNote="";$("#tabs").style.display="";$("#demoBtn").style.visibility="visible";$("#demoWho").textContent=emp(me()).name;
-  await loadWeather();tab="today";started=true;render("a-load");geocodeOffice()}
+  await loadWeather();tab="today";started=true;render("a-load");geocodeOffice();if(pushReady()&&Notification.permission==="granted")pushSubscribe(false).catch(function(){});else askPushOnce()}
 document.addEventListener("click",function(e){var t=e.target.closest("[data-tab]");if(t){var order=tabOrder(),a=order.indexOf(tab),b=order.indexOf(t.dataset.tab);if(t.dataset.tab===tab)return;tab=t.dataset.tab;render(b>a?"a-tl":"a-tr");return}
   var ok=e.target.closest("[data-ok]");if(ok){decide(ok.dataset.ok,true);return}var no=e.target.closest("[data-no]");if(no){decide(no.dataset.no,false);return}
   var ex=e.target.closest("[data-exp]");if(ex){var box=$("#x"+ex.dataset.exp);box.hidden=!box.hidden;if(ex.classList.contains("exp"))ex.textContent=box.hidden?"פירוט לפי ימים":"הסתרת הפירוט";return}
@@ -255,6 +268,7 @@ function accountDialog(){var m=emp(me()),pend=pendingCount(),off=D.office||{},co
       (isMgr()?'<button type="button" id="aHere"><span>מיקום המשרד</span><span>'+(off.lat?"נקבע":"עוד לא נקבע")+'</span></button>'+
         '<button type="button" id="aCodes"><span>קודי הצטרפות</span><span>'+(codes.length?codes.length+" ממתינים":"כולם נכנסו")+'</span></button>'+
         '<button type="button" id="aReset"><span>איפוס היום שלי</span><span>לבדיקות</span></button>':"")+
+      '<button type="button" id="aPush"><span>התראות</span><span>'+pushState()+'</span></button>'+
       '<button type="button" id="aOut" class="r"><span>התנתקות</span><span>'+esc(m?m.name:"")+'</span></button>'+
       '<div class="fm-ver">גרסה '+APP_VERSION+'</div></div></div>';
   document.body.appendChild(el);requestAnimationFrame(function(){el.classList.add("show")});
@@ -262,6 +276,7 @@ function accountDialog(){var m=emp(me()),pend=pendingCount(),off=D.office||{},co
   el.querySelector("#fmClose").onclick=close;
   el.querySelectorAll("[data-go]").forEach(function(x){x.onclick=function(){var k=x.dataset.go;close();if(k===tab)return;var o=tabOrder(),a=o.indexOf(tab),c=o.indexOf(k);tab=k;render(c>a?"a-tl":"a-tr")}});
   el.querySelector("#aOut").onclick=async function(){close();await sb.auth.signOut();location.reload()};
+  var ap=el.querySelector("#aPush");if(ap)ap.onclick=async function(){var s=ap.lastChild;if(!pushReady()){s.textContent=isStandalone()?"לא נתמך":"קודם הוספה למסך הבית";return}s.textContent="רגע…";var r=await pushSubscribe(true).catch(function(){return "error"});s.textContent=r==="on"?"פעילות":r==="denied"?"חסומות בהגדרות":r==="error"?"לא הצליח":"כבויות"};
   var rs=el.querySelector("#aReset");if(rs)rs.onclick=async function(){close();try{await rpc("reset_my_day");D.dayNote="";FX.stop();tab="today";await refresh();toast("היום שלך אופס. אפשר להיכנס שוב")}catch(e){toast(errMsg(e))}};
   var cd=el.querySelector("#aCodes");if(cd)cd.onclick=function(){var b=pop('<h3>קודי הצטרפות</h3><p class="sub">כל אחד לוחץ על השם שלו בשעון ומקליד את הקוד. אחרי שנכנס, הקוד נמחק.</p>'+(codes.length?codes.map(function(e){return '<div class="drow"><span>'+e.name+'</span><span class="nn"></span><span class="tt ltr" style="letter-spacing:.12em;font-size:17px">'+e.code+"</span></div>"}).join(""):'<p class="sub">כולם כבר נכנסו.</p>')+'<div class="btns"><button class="bs">סגירה</button></div>');b.querySelector(".bs").onclick=closePop};
   var h=el.querySelector("#aHere");if(h)h.onclick=async function(){var s=h.lastChild;s.textContent="רגע…";var p=await getPos();if(!p){s.textContent="אין גישה למיקום";return}
@@ -322,7 +337,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=25;
+APP_VERSION=26;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
