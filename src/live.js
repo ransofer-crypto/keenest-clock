@@ -54,7 +54,7 @@ async function geocodeOffice(){if(!isMgr()||!D.office||D.office.lat||!D.office.a
 var busy=false;
 async function act(){if(busy)return;var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);if(p&&p.out)return;busy=true;
   var pos=await (window.__posP||getPos()),loc=whereIs(pos);window.__posP=null;busy=false;
-  if(isMgr()){if(!p)clockIn(loc,pos);else clockOut(loc,pos,null);return} /* Ran and Tzafrir often work from home: no outside-office warnings for them */
+  if(isMgr()&&emp(me()).name==="רן"){if(!p)clockIn(loc,pos);else clockOut(loc,pos,null);return} /* Ran often works from home: no outside-office warnings for him (Tzafrir gets them again, by request) */
   if(!p){if(loc==="out"){var b=pop('<h3>אתה לא במשרד</h3><p>בטוח שאתה רוצה לעשות כניסה מכאן?</p><div class="btns"><button class="bp" id="goIn">כניסה בכל זאת</button><button class="bs">ביטול</button></div>');
       b.querySelector("#goIn").onclick=function(){closePop();clockIn(loc,pos)};b.querySelector(".bs").onclick=function(){closePop();render()};return}clockIn(loc,pos);return}
   if(loc==="out"){outAway(p,pos);return}clockOut(loc,pos,null)}
@@ -370,7 +370,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=29;
+APP_VERSION=30;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
