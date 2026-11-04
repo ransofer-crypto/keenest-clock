@@ -427,6 +427,15 @@ header.top{margin-top:14px}
 .slide{height:66px!important}
 .knob{width:56px!important;height:56px!important;top:5px!important}
 .slide.exit .knob{left:5px}
+/* evening tint fades over the day tint instead of jumping (a colour cannot animate into a gradient) */
+.veil.out{background:transparent!important;opacity:1}
+.veil::after{content:"";position:absolute;inset:0;background:var(--dusk);opacity:0;transition:opacity 1.3s cubic-bezier(.32,.72,0,1)}
+.veil.out::after{opacity:1}
+.veil{transition:opacity 1.1s ease,background-color 1.3s cubic-bezier(.32,.72,0,1)!important}
+/* outside-the-office mark on the team board */
+.wgrid .c.o{position:relative}
+.od{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--k-pink);vertical-align:1px}
+.wgrid .c .od{position:absolute;top:6px;left:6px}
 /* manager avatars, same colors as the work board */
 .av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
 .av.z{background:linear-gradient(135deg,#4CC98A,#1F8A55);color:#fff}
@@ -2122,7 +2131,7 @@ var weekOff=0;
 function cellOf(e,g){var p=punchOf(e.id,g),today=iso(new Date()),v=D.reqs.find(function(r){return r.emp===e.id&&(r.type==="vac"||r.type==="sick")&&r.status==="ok"&&r.from<=g&&r.to>=g});
   if(e.start&&g<e.start)return '<span class="c e"></span>';
   if(v)return '<span class="c v">'+(v.type==="sick"?"מחלה":"חופש")+"</span>";
-  if(p)return '<span class="c'+(p.pending?" w":"")+'">'+p.in+"<br>"+(p.out||"·")+"</span>";
+  if(p){var away=p.inLoc==="out"||p.outLoc==="out";return '<span class="c'+(p.pending?" w":"")+(away?" o":"")+'"'+(away?' title="'+esc(p.note||"מחוץ למשרד")+'"':"")+'>'+p.in+"<br>"+(p.out||"·")+(away?'<i class="od"></i>':"")+"</span>"}
   return '<span class="c e">'+(g<today?"–":"")+"</span>"}
 function viewTeam(){var s=addDays(sundayOf(new Date()),weekOff*7),today=iso(new Date()),days=[0,1,2,3,4].map(function(i){return addDays(s,i)});
   var lab=weekOff===0?"השבוע":weekOff===-1?"שבוע שעבר":"";var rng=days[0].getDate()+"–"+days[4].getDate()+" ב"+HEB_MONTHS[days[4].getMonth()];
@@ -2131,7 +2140,7 @@ function viewTeam(){var s=addDays(sundayOf(new Date()),weekOff*7),today=iso(new 
     (weekOff===0?'<p class="tw-now"><b>'+inNow+'</b> מתוך '+D.emps.length+" בעבודה עכשיו</p>":"")+
     '<div class="wgrid"><span></span>'+days.map(function(d){return '<span class="h'+(iso(d)===today?" t":"")+'">'+HEB_DAYS[d.getDay()].slice(0,1)+"׳ "+d.getDate()+"</span>"}).join("")+
     D.emps.map(function(e){return '<button type="button" class="wn" data-emp="'+e.id+'"><i class="pd '+e.cls+'"></i>'+esc(e.name)+"</button>"+days.map(function(d){var g=iso(d);return g===today?cellOf(e,g).replace('class="c','class="c t'):cellOf(e,g)}).join("")}).join("")+
-    '</div><p class="tw-key">לחיצה על שם פותחת את הפרטים שלו</p></div>'}
+    '</div><p class="tw-key"><i class="od"></i> מחוץ למשרד · לחיצה על שם פותחת את הפרטים שלו</p></div>'}
 
 /* approvals: one card per request */
 function viewApprove(){var pend=D.reqs.filter(function(r){return r.status==="pending"}).sort(function(a,b){return a.created<b.created?-1:1}),done=D.reqs.filter(function(r){return r.status!=="pending"&&r.type!=="sick"}).slice(-5).reverse();
@@ -2172,7 +2181,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=23;
+APP_VERSION=24;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}

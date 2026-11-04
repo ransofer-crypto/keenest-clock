@@ -182,6 +182,15 @@ header.top{margin-top:14px}
 .slide{height:66px!important}
 .knob{width:56px!important;height:56px!important;top:5px!important}
 .slide.exit .knob{left:5px}
+/* evening tint fades over the day tint instead of jumping (a colour cannot animate into a gradient) */
+.veil.out{background:transparent!important;opacity:1}
+.veil::after{content:"";position:absolute;inset:0;background:var(--dusk);opacity:0;transition:opacity 1.3s cubic-bezier(.32,.72,0,1)}
+.veil.out::after{opacity:1}
+.veil{transition:opacity 1.1s ease,background-color 1.3s cubic-bezier(.32,.72,0,1)!important}
+/* outside-the-office mark on the team board */
+.wgrid .c.o{position:relative}
+.od{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--k-pink);vertical-align:1px}
+.wgrid .c .od{position:absolute;top:6px;left:6px}
 /* manager avatars, same colors as the work board */
 .av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
 .av.z{background:linear-gradient(135deg,#4CC98A,#1F8A55);color:#fff}
