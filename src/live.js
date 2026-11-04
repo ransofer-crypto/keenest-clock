@@ -59,11 +59,11 @@ async function act(){if(busy)return;var e=emp(me()),g=iso(new Date()),p=punchOf(
   if(loc==="out"){outAway(p,pos);return}clockOut(loc,pos,null)}
 /* optimistic: the screen updates at once, the server confirms in the background */
 async function clockIn(loc,pos){var e=emp(me()),g=iso(new Date()),t=hm(new Date()),tmp={id:"tmp",emp:e.id,date:g,in:t,out:null,inLoc:loc,outLoc:"",note:D.dayNote||"",pending:false};
-  D.punches.push(tmp);window.__rise=1;render();
+  D.punches.push(tmp);window.__rise=1;window.__wash=1;render();
   try{var r=await rpc("clock_in",{loc:loc,lat:pos&&pos.lat,lng:pos&&pos.lng});tmp.id=r.id;var st=t5(r.in_time);if(st!==tmp.in){tmp.in=st;var el=document.querySelector(".mock .t");if(el)el.textContent=st}}
   catch(x){D.punches=D.punches.filter(function(p){return p!==tmp});render();toast(errMsg(x))}}
 async function clockOut(loc,pos,earlier){var e=emp(me()),p=punchOf(e.id,iso(new Date())),t=earlier||hm(new Date());if(p){p.out=t;p.outLoc=loc;if(earlier)p.pending=true}
-  window.__rise=1;render();if(earlier)toast("שעת היציאה נשלחה לאישור");
+  window.__rise=1;window.__wash=1;render();if(earlier)toast("שעת היציאה נשלחה לאישור");
   try{var r=await rpc("clock_out",{loc:loc,lat:pos&&pos.lat,lng:pos&&pos.lng,earlier:earlier});if(p&&!earlier){var st=t5(r.out_time);if(st!==p.out){p.out=st;render()}}if(earlier)refresh()}
   catch(x){if(p){p.out=null;p.pending=false}render();toast(errMsg(x))}}
 function outAway(p,pos){var b=pop('<h3>אתה לא במשרד</h3><p class="sub">מתי יצאת?</p><div class="seg" id="whenSeg"><button type="button" aria-pressed="true" data-w="now">עכשיו</button><button type="button" aria-pressed="false" data-w="before">קודם</button></div><div class="form" id="tBox" hidden><div class="fld"><label for="outT">שעת יציאה</label><input id="outT" type="time" value="'+hm(new Date())+'"></div></div><p id="tNote" hidden>שעה מוקדמת נשלחת לאישור של רן או צפריר.</p><div class="btns"><button class="bp" id="okOut">יציאה</button><button class="bs">ביטול</button></div>');
@@ -85,7 +85,8 @@ function viewToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g),look=to
   var flag=p&&p.inLoc==="out"&&!note?'<span class="locflag">נכנסת מחוץ למשרד</span>':"";
   var sad=look.fx&&look.fx[0]==="נר תשעה באב",hi=sad?e.name:partOfDay()+", "+e.name;
   var rise=window.__rise?" rise":"";
-  return '<section class="mock"><span class="hi">'+esc(hi)+'</span><p class="q'+(st==="before"?" hide":" rise")+'">'+esc(look.q)+'</p><span class="sp big"></span>'+
+  if(window.__rise)tHtml=tHtml.replace(/>([0-9:]{4,5})</g,function(m,t){return ">"+t.split("").map(function(ch,i){return '<span class="dg" style="--i:'+i+'">'+ch+"</span>"}).join("")+"<"}).replace(/>([0-9:]{4,5})(<span class="dash">)/,function(m,t,rest){return ">"+t.split("").map(function(ch,i){return '<span class="dg" style="--i:'+i+'">'+ch+"</span>"}).join("")+rest});
+  return '<section class="mock'+(window.__rise?" enter":"")+'"><span class="hi">'+esc(hi)+'</span><p class="q'+(st==="before"?" hide":" rise")+'">'+esc(look.q)+'</p><span class="sp big"></span>'+
     '<span class="l">יום '+HEB_DAYS[new Date().getDay()]+", "+nice(g)+"</span>"+tHtml+'<button type="button" class="where'+(note?" on":"")+'" id="whereBtn"><svg><use href="#i-pin"/></svg><span>'+(note?esc(note):"מחוץ למשרד היום?")+"</span></button>"+flag+
     '<span class="sp"></span><div class="slide'+(st==="in"?" exit":"")+(st==="done"?" done":"")+'" id="slide"><span class="knob" id="knob"><svg><use href="#i-arrow"/></svg></span><span class="lbl" id="slbl">'+(st==="before"?"החלק לכניסה":st==="in"?"החלק ליציאה":"יום טוב, נתראה מחר")+"</span></div></section>"}
 function whereDialog(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);var cur=(p&&p.note)||D.dayNote||"";
@@ -168,7 +169,7 @@ var BAR={light:{"":"#E6E9EC",in:"#C2E0EB",out:"#A1ADB8"},dark:{"":"#2F2F2F",in:"
 var FOOT={light:{"":"#E6E9EC",in:"#C2E0EB",out:"#E9DDD8"},dark:{"":"#2F2F2F",in:"#274953",out:"#4C3D35"}};
 function isDark(){var t=document.documentElement.getAttribute("data-theme");return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches}
 var veilNow="";
-function setVeil(c){veilNow=c||"";var el=$("#veil");el.className="veil"+(c?" "+c:"");var k=isDark()?"dark":"light",m=$("#tcolor");if(m)m.setAttribute("content",BAR[k][veilNow]);document.documentElement.style.backgroundColor=FOOT[k][veilNow]}
+function setVeil(c){var was=veilNow;veilNow=c||"";var el=$("#veil");el.className="veil"+(c?" "+c:"")+(c&&c!==was&&window.__wash?" wash":"");window.__wash=0;var k=isDark()?"dark":"light",m=$("#tcolor");if(m)m.setAttribute("content",BAR[k][veilNow]);document.documentElement.style.backgroundColor=FOOT[k][veilNow]}
 var _render=render;render=function(dir){_render(dir);var d=$("#mdot");if(d)d.hidden=!pendingCount()};
 
 /* ---------- login ---------- */
@@ -302,7 +303,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=19;
+APP_VERSION=20;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
@@ -326,7 +327,7 @@ function bindSlide(){var slide=$("#slide"),knob=$("#knob"),lbl=$("#slbl"),sky=$(
   knob.onpointermove=function(e){if(!drag)return;drag.d=Math.max(0,Math.min(max(),(e.clientX-drag.x)*dir));paint(drag.d)};
   function settle(to,cb){var from=Math.abs(parseFloat((knob.style.transform.match(/-?[\d.]+/)||[0])[0]))||0,t0=performance.now(),dur=Math.max(200,(to>0?560:750)*Math.abs(to-from)/Math.max(1,max()));
     (function step(){var u=Math.min(1,(performance.now()-t0)/dur),e2=u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;paint(from+(to-from)*e2);if(u<1)requestAnimationFrame(step);else if(cb)cb()})()}
-  function finish(){fast=true;if(cur<.9){setTimeout(finish,30);return}var fc=rampAt(R,1);slide.classList.add("arrived");
+  function finish(){fast=true;if(cur<.9){setTimeout(finish,30);return}if(raf){cancelAnimationFrame(raf);raf=0}cur=target=1;colors(1);knob.style.transform="translateX("+(dir*max())+"px)";var fc=rampAt(R,1);slide.classList.add("arrived");
     sky.style.transition="background .7s cubic-bezier(.32,.72,0,1)";sky.style.background="rgb("+fc+")";
     lbl.style.transition="opacity .35s ease";lbl.style.opacity="0";
     setTimeout(function(){lbl.textContent=partOfDay();lbl.style.color="#fff";lbl.style.opacity="1"},300);
