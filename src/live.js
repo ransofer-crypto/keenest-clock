@@ -57,6 +57,14 @@ async function act(){if(busy)return;var e=emp(me()),g=iso(new Date()),p=punchOf(
   if(!p){if(loc==="out"){var b=pop('<h3>אתה לא במשרד</h3><p>בטוח שאתה רוצה לעשות כניסה מכאן?</p><div class="btns"><button class="bp" id="goIn">כניסה בכל זאת</button><button class="bs">ביטול</button></div>');
       b.querySelector("#goIn").onclick=function(){closePop();clockIn(loc,pos)};b.querySelector(".bs").onclick=function(){closePop();render()};return}clockIn(loc,pos);return}
   if(loc==="out"){outAway(p,pos);return}clockOut(loc,pos,null)}
+/* clock-in moment, in the spirit of iPhone NameDrop: a colour glow wraps the screen edges and a soft light wave
+   rises from the slider; everything it passes swells for an instant */
+function nameDrop(){if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+  var g=document.createElement("div");g.className="nd-glow";var w=document.createElement("div");w.className="nd-wave";document.body.appendChild(g);document.body.appendChild(w);
+  setTimeout(function(){g.remove();w.remove()},1900);
+  var H=innerHeight;document.querySelectorAll("header.top .hlogo,header.top .rb,.mock .hi,.mock .q,.mock .l,.mock .where").forEach(function(el){var r=el.getBoundingClientRect(),d=Math.max(0,(H-(r.top+r.height/2))/H)*0.75;
+    el.style.animation="none";void el.offsetWidth;el.style.animation="ndpop .7s cubic-bezier(.32,.72,0,1) "+d.toFixed(2)+"s both";setTimeout(function(){el.style.animation=""},(d+.8)*1000)})}
+
 /* clock in/out never rebuilds the screen: only the parts that change are swapped in place */
 function patchToday(){var om=document.querySelector("#view .mock");if(tab!=="today"||!om){render();return}
   var tmp=document.createElement("div");tmp.innerHTML=viewToday();var nm=tmp.querySelector(".mock");
@@ -69,7 +77,7 @@ function patchToday(){var om=document.querySelector("#view .mock");if(tab!=="tod
 
 /* optimistic: the screen updates at once, the server confirms in the background */
 async function clockIn(loc,pos){var e=emp(me()),g=iso(new Date()),t=hm(new Date()),tmp={id:"tmp",emp:e.id,date:g,in:t,out:null,inLoc:loc,outLoc:"",note:D.dayNote||"",pending:false};
-  D.punches.push(tmp);window.__rise=1;window.__wash=1;patchToday();
+  D.punches.push(tmp);window.__rise=1;window.__wash=1;patchToday();nameDrop();
   try{var r=await rpc("clock_in",{loc:loc,lat:pos&&pos.lat,lng:pos&&pos.lng});tmp.id=r.id;var st=t5(r.in_time);if(st!==tmp.in){tmp.in=st;var el=document.querySelector(".mock .t");if(el)el.textContent=st}}
   catch(x){D.punches=D.punches.filter(function(p){return p!==tmp});render();toast(errMsg(x))}}
 async function clockOut(loc,pos,earlier){var e=emp(me()),p=punchOf(e.id,iso(new Date())),t=earlier||hm(new Date());if(p){p.out=t;p.outLoc=loc;if(earlier)p.pending=true}
@@ -314,7 +322,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=24;
+APP_VERSION=25;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}

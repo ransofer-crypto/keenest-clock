@@ -191,6 +191,20 @@ header.top{margin-top:14px}
 .wgrid .c.o{position:relative}
 .od{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--k-pink);vertical-align:1px}
 .wgrid .c .od{position:absolute;top:6px;left:6px}
+/* NameDrop-style clock-in moment */
+@property --nda{syntax:"<angle>";inherits:false;initial-value:0deg}
+.nd-glow{position:fixed;inset:0;z-index:35;pointer-events:none;padding:14px;border-radius:44px;
+  background:conic-gradient(from var(--nda),#06B3E5,#7B5CFF,#FA1664,#FFB547,#06B3E5);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);
+  filter:blur(14px);animation:ndglow 1.8s cubic-bezier(.32,.72,0,1) both}
+@keyframes ndglow{0%{opacity:0;--nda:0deg;padding:4px}25%{opacity:1;padding:18px}100%{opacity:0;--nda:300deg;padding:8px}}
+.nd-wave{position:fixed;left:-20%;right:-20%;height:46vh;top:100%;z-index:34;pointer-events:none;
+  background:radial-gradient(60% 50% at 50% 50%,rgb(255 255 255 / .55),rgb(6 179 229 / .28) 35%,rgb(123 92 255 / .16) 55%,rgb(250 22 100 / 0) 72%);
+  -webkit-backdrop-filter:blur(3px) saturate(160%);backdrop-filter:blur(3px) saturate(160%);
+  -webkit-mask:radial-gradient(60% 50% at 50% 50%,#000 30%,transparent 72%);mask:radial-gradient(60% 50% at 50% 50%,#000 30%,transparent 72%);
+  animation:ndwave 1.15s cubic-bezier(.4,.1,.2,1) both}
+@keyframes ndwave{from{transform:translateY(0);opacity:0}15%{opacity:1}to{transform:translateY(-150vh);opacity:.2}}
+@keyframes ndpop{0%{scale:1;filter:none}35%{scale:1.045;filter:brightness(1.25) blur(.6px)}100%{scale:1;filter:none}}
 /* manager avatars, same colors as the work board */
 .av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
 .av.z{background:linear-gradient(135deg,#4CC98A,#1F8A55);color:#fff}
