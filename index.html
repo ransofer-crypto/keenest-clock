@@ -450,6 +450,8 @@ header.top{margin-top:14px}
   animation:ndwave 1.15s cubic-bezier(.4,.1,.2,1) both}
 @keyframes ndwave{from{transform:translateY(0);opacity:0}15%{opacity:1}to{transform:translateY(-150vh);opacity:.2}}
 @keyframes ndpop{0%{scale:1;filter:none}35%{scale:1.045;filter:brightness(1.25) blur(.6px)}100%{scale:1;filter:none}}
+/* the light curtain canvas */
+.aur{position:fixed;inset:0;width:100vw;height:100%;z-index:35;pointer-events:none}
 /* manager avatars, same colors as the work board */
 .av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
 .av.z{background:linear-gradient(135deg,#4CC98A,#1F8A55);color:#fff}
@@ -1954,11 +1956,40 @@ function askPushOnce(){if(!pushReady()||!isStandalone()||Notification.permission
 
 /* clock-in moment, in the spirit of iPhone NameDrop: a colour glow wraps the screen edges and a soft light wave
    rises from the slider; everything it passes swells for an instant */
-function nameDrop(){if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
-  var g=document.createElement("div");g.className="nd-glow";var w=document.createElement("div");w.className="nd-wave";document.body.appendChild(g);document.body.appendChild(w);
-  setTimeout(function(){g.remove();w.remove()},1900);
-  var H=innerHeight;document.querySelectorAll("header.top .hlogo,header.top .rb,.mock .hi,.mock .q,.mock .l,.mock .where").forEach(function(el){var r=el.getBoundingClientRect(),d=Math.max(0,(H-(r.top+r.height/2))/H)*0.75;
-    el.style.animation="none";void el.offsetWidth;el.style.animation="ndpop .7s cubic-bezier(.32,.72,0,1) "+d.toFixed(2)+"s both";setTimeout(function(){el.style.animation=""},(d+.8)*1000)})}
+function nameDrop(exit){if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+  /* light curtain drawn on the graphics chip: at clock-in it rises from the bottom in Keenest colours,
+     at clock-out it comes down from the top in sunset colours; what it passes swells for an instant */
+  var cv=document.createElement("canvas");cv.className="aur";document.body.appendChild(cv);
+  var gl=cv.getContext("webgl",{premultipliedAlpha:true,alpha:true});
+  var H=innerHeight;document.querySelectorAll("header.top .hlogo,header.top .rb,.mock .hi,.mock .q,.mock .l,.mock .where").forEach(function(el){var r=el.getBoundingClientRect(),y=(r.top+r.height/2)/H,d=(exit?y:(1-y))*1.15;
+    el.style.animation="none";void el.offsetWidth;el.style.animation="ndpop .75s cubic-bezier(.32,.72,0,1) "+d.toFixed(2)+"s both";setTimeout(function(){el.style.animation=""},(d+.85)*1000)});
+  if(!gl){cv.remove();return}
+  var VS="attribute vec2 p;varying vec2 uv;void main(){uv=p*.5+.5;gl_Position=vec4(p,0.,1.);}";
+  var FS="precision highp float;varying vec2 uv;uniform vec2 res;uniform float t;uniform float dpr;uniform float ex;"+
+   "float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}"+
+   "float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}"+
+   "float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*n(p);p*=2.03;a*=.5;}return v;}"+
+   "vec3 q4(float x,vec3 a,vec3 b,vec3 c,vec3 d){x=fract(x);if(x<.25)return mix(a,b,smoothstep(0.,.25,x));if(x<.5)return mix(b,c,smoothstep(.25,.5,x));if(x<.75)return mix(c,d,smoothstep(.5,.75,x));return mix(d,a,smoothstep(.75,1.,x));}"+
+   "vec3 pal(float x){vec3 c=ex<.5?q4(x,vec3(.02,.70,.90),vec3(.48,.36,1.),vec3(.98,.09,.39),vec3(1.,.71,.28)):q4(x,vec3(.48,.36,1.),vec3(.98,.09,.39),vec3(1.,.55,.30),vec3(.28,.20,.55));c=mix(c,vec3(dot(c,vec3(.3,.59,.11))),.38);return mix(c,vec3(1.),.12);}"+
+   "float sdR(vec2 p,vec2 b,float r){vec2 q=abs(p)-b+r;return length(max(q,0.))+min(max(q.x,q.y),0.)-r;}"+
+   "void main(){vec2 px=uv*res;vec2 c=res*.5;float d=-sdR(px-c,c,48.*dpr);float ang=atan(px.y-c.y,px.x-c.x)/6.2831853;"+
+   "float T=clamp(t/1.5,0.,1.);float front=(1.-pow(1.-T,2.2))*res.y*1.25;float y=ex<.5?px.y:res.y-px.y;"+
+   "float cur=fbm(vec2(uv.x*2.5+t*.5,uv.y*3.+(ex<.5?-1.:1.)*t*1.2));float band=exp(-pow((y-front+cur*90.*dpr)/(175.*dpr),2.));"+
+   "float trail=smoothstep(front,front-res.y*.6,y)*(1.-smoothstep(.6,1.6,t))*.12;"+
+   "vec3 ac=pal(uv.x*.9+uv.y*.4+t*.25+cur*.5);vec3 rc=pal(ang+t*.22+fbm(uv*vec2(3.,5.)+t*.5)*.45);"+
+   "float rim=(exp(-d/(10.*dpr))*.5+exp(-d/(42.*dpr))*.38+exp(-d/(120.*dpr))*.16)*(.75+.5*fbm(vec2(ang*9.+t*1.3,t*.7)));"+
+   "float e3=smoothstep(.5,1.,t)*(1.-smoothstep(1.4,2.4,t));float fade=1.-smoothstep(1.1,1.7,t);float k=band*.48*fade*(.55+.6*cur);"+
+   "float a=clamp(k+trail+rim*e3*.5,0.,1.);gl_FragColor=vec4(ac*k+ac*trail+rc*rim*e3*.5,a);}";
+  function sh(ty,s){var o=gl.createShader(ty);gl.shaderSource(o,s);gl.compileShader(o);return o}
+  var pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,VS));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(pr);
+  if(!gl.getProgramParameter(pr,gl.LINK_STATUS)){cv.remove();return}gl.useProgram(pr);
+  var bf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,bf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+  var lp=gl.getAttribLocation(pr,"p");gl.enableVertexAttribArray(lp);gl.vertexAttribPointer(lp,2,gl.FLOAT,false,0,0);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+  var dpr=Math.min(2,devicePixelRatio||1);cv.width=cv.clientWidth*dpr;cv.height=cv.clientHeight*dpr;gl.viewport(0,0,cv.width,cv.height);
+  var U=function(n){return gl.getUniformLocation(pr,n)},uR=U("res"),uT=U("t"),uD=U("dpr"),uE=U("ex"),t0=performance.now();
+  (function frame(){var t=(performance.now()-t0)/1000;gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.uniform2f(uR,cv.width,cv.height);gl.uniform1f(uT,t);gl.uniform1f(uD,dpr);gl.uniform1f(uE,exit?1:0);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+    if(t<2.5)requestAnimationFrame(frame);else{var ext=gl.getExtension("WEBGL_lose_context");if(ext)ext.loseContext();cv.remove()}})()}
 
 /* clock in/out never rebuilds the screen: only the parts that change are swapped in place */
 function patchToday(){var om=document.querySelector("#view .mock");if(tab!=="today"||!om){render();return}
@@ -1972,11 +2003,11 @@ function patchToday(){var om=document.querySelector("#view .mock");if(tab!=="tod
 
 /* optimistic: the screen updates at once, the server confirms in the background */
 async function clockIn(loc,pos){var e=emp(me()),g=iso(new Date()),t=hm(new Date()),tmp={id:"tmp",emp:e.id,date:g,in:t,out:null,inLoc:loc,outLoc:"",note:D.dayNote||"",pending:false};
-  D.punches.push(tmp);window.__rise=1;window.__wash=1;patchToday();nameDrop();
+  D.punches.push(tmp);window.__rise=1;window.__wash=1;patchToday();nameDrop(false);
   try{var r=await rpc("clock_in",{loc:loc,lat:pos&&pos.lat,lng:pos&&pos.lng});tmp.id=r.id;var st=t5(r.in_time);if(st!==tmp.in){tmp.in=st;var el=document.querySelector(".mock .t");if(el)el.textContent=st}}
   catch(x){D.punches=D.punches.filter(function(p){return p!==tmp});render();toast(errMsg(x))}}
 async function clockOut(loc,pos,earlier){var e=emp(me()),p=punchOf(e.id,iso(new Date())),t=earlier||hm(new Date());if(p){p.out=t;p.outLoc=loc;if(earlier)p.pending=true}
-  window.__rise=1;window.__wash=1;patchToday();if(earlier)toast("שעת היציאה נשלחה לאישור");
+  window.__rise=1;window.__wash=1;patchToday();nameDrop(true);if(earlier)toast("שעת היציאה נשלחה לאישור");
   try{var r=await rpc("clock_out",{loc:loc,lat:pos&&pos.lat,lng:pos&&pos.lng,earlier:earlier});if(p&&!earlier){var st=t5(r.out_time);if(st!==p.out){p.out=st;var el2=document.querySelector(".mock .t");if(el2)el2.innerHTML=p.in+'<span class="dash"> – </span>'+st}}if(earlier)refresh()}
   catch(x){if(p){p.out=null;p.pending=false}render();toast(errMsg(x))}}
 function outAway(p,pos){var b=pop('<h3>אתה לא במשרד</h3><p class="sub">מתי יצאת?</p><div class="seg" id="whenSeg"><button type="button" aria-pressed="true" data-w="now">עכשיו</button><button type="button" aria-pressed="false" data-w="before">קודם</button></div><div class="form" id="tBox" hidden><div class="fld"><label for="outT">שעת יציאה</label><input id="outT" type="time" value="'+hm(new Date())+'"></div></div><p id="tNote" hidden>שעה מוקדמת נשלחת לאישור של רן או צפריר.</p><div class="btns"><button class="bp" id="okOut">יציאה</button><button class="bs">ביטול</button></div>');
@@ -2219,7 +2250,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=27;
+APP_VERSION=28;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}

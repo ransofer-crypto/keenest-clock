@@ -205,6 +205,8 @@ header.top{margin-top:14px}
   animation:ndwave 1.15s cubic-bezier(.4,.1,.2,1) both}
 @keyframes ndwave{from{transform:translateY(0);opacity:0}15%{opacity:1}to{transform:translateY(-150vh);opacity:.2}}
 @keyframes ndpop{0%{scale:1;filter:none}35%{scale:1.045;filter:brightness(1.25) blur(.6px)}100%{scale:1;filter:none}}
+/* the light curtain canvas */
+.aur{position:fixed;inset:0;width:100vw;height:100%;z-index:35;pointer-events:none}
 /* manager avatars, same colors as the work board */
 .av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
 .av.z{background:linear-gradient(135deg,#4CC98A,#1F8A55);color:#fff}
