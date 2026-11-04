@@ -112,7 +112,10 @@ function nameDrop(exit){if(matchMedia("(prefers-reduced-motion: reduce)").matche
 function patchToday(){var om=document.querySelector("#view .mock");if(tab!=="today"||!om){render();return}
   var tmp=document.createElement("div");tmp.innerHTML=viewToday();var nm=tmp.querySelector(".mock");
   om.className=nm.className;
-  [".t",".slide"].forEach(function(s){var a=om.querySelector(s),b=nm.querySelector(s);if(a&&b)a.replaceWith(b)});
+  [".t",".slide"].forEach(function(s){var a=om.querySelector(s),b=nm.querySelector(s);if(!a||!b)return;
+    /* a slider that just arrived finishes its own landing, then is swapped for an identical-looking fresh one */
+    if(s===".slide"&&a.classList.contains("arrived")){b.style.animation="none";a.__swap=function(){a.__swap=null;if(!a.isConnected)return;a.replaceWith(b);bindSlide()};if(a.__rested)a.__swap()}
+    else a.replaceWith(b)});
   var oq=om.querySelector(".q"),nq=nm.querySelector(".q");if(oq&&nq){if(oq.textContent!==nq.textContent)oq.textContent=nq.textContent;oq.className=nq.className}
   var ow=om.querySelector(".where"),nw=nm.querySelector(".where");if(ow&&nw&&ow.outerHTML!==nw.outerHTML)ow.replaceWith(nw);
   var of=om.querySelector(".locflag");if(of)of.remove();var nf=nm.querySelector(".locflag");if(nf)om.querySelector(".where").after(nf);
@@ -367,14 +370,14 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=28;
+APP_VERSION=29;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
 var _viewToday=viewToday;
 viewToday=function(){var h=_viewToday();window.__rise=0;
   return h.replace('<span class="knob" id="knob"><svg><use href="#i-arrow"/></svg></span>','<span class="sky" id="sky"></span><span class="knob" id="knob"><svg class="k1"><use href="#i-moon"/></svg><svg class="k2"><use href="#i-sun"/></svg></span>')};
-function bindSlide(){var slide=$("#slide"),knob=$("#knob"),lbl=$("#slbl"),sky=$("#sky");if(!slide||slide.classList.contains("done"))return;
+function bindSlide(){var slide=$("#slide"),knob=$("#knob"),lbl=$("#slbl"),sky=$("#sky");if(!slide||slide.classList.contains("done")||slide.classList.contains("arrived"))return;
   var exit=slide.classList.contains("exit"),drag=null,R=exit?RAMP_OUT:RAMP_IN,dir=exit?1:-1;
   if(exit){knob.querySelector(".k1").innerHTML='<use href="#i-sun"/>';knob.querySelector(".k2").innerHTML='<use href="#i-moon"/>'}
   function max(){return slide.clientWidth-knob.offsetWidth-10}
@@ -391,11 +394,18 @@ function bindSlide(){var slide=$("#slide"),knob=$("#knob"),lbl=$("#slbl"),sky=$(
   knob.onpointermove=function(e){if(!drag)return;drag.d=Math.max(0,Math.min(max(),(e.clientX-drag.x)*dir));paint(drag.d)};
   function settle(to,cb){var from=Math.abs(parseFloat((knob.style.transform.match(/-?[\d.]+/)||[0])[0]))||0,t0=performance.now(),dur=Math.max(200,(to>0?560:750)*Math.abs(to-from)/Math.max(1,max()));
     (function step(){var u=Math.min(1,(performance.now()-t0)/dur),e2=u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;paint(from+(to-from)*e2);if(u<1)requestAnimationFrame(step);else if(cb)cb()})()}
-  function finish(){fast=true;if(cur<.9){setTimeout(finish,30);return}if(raf){cancelAnimationFrame(raf);raf=0}cur=target=1;colors(1);knob.style.transform="translateX("+(dir*max())+"px)";var fc=rampAt(R,1);slide.classList.add("arrived");
-    sky.style.transition="background .7s cubic-bezier(.32,.72,0,1)";sky.style.background="rgb("+fc+")";
-    lbl.style.transition="opacity .35s ease";lbl.style.opacity="0";
-    setTimeout(function(){lbl.textContent=partOfDay();lbl.style.color="#fff";lbl.style.opacity="1"},300);
-    setTimeout(function(){act()},520)}
+  /* arrival: the colours glide all the way to the end, then the light fades back into the resting track
+     while the next label fades in, so the slider lands exactly as the next state looks: no colour snap, no swap */
+  function finish(){fast=true;if(!raf&&cur<1){target=1;raf=requestAnimationFrame(tick)}
+    if(cur<.999){requestAnimationFrame(finish);return}
+    slide.classList.add("arrived");act();
+    var nx=exit?"יום טוב, נתראה מחר":"החלק ליציאה",t0=performance.now(),swapped=false;
+    (function rest(){var u=Math.min(1,(performance.now()-t0)/1000),e=u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;
+      sky.style.opacity=String(1-e);
+      if(exit){slide.style.opacity=String(1-.45*e);knob.style.opacity=String(1-e)}
+      if(u>.35&&!swapped){swapped=true;lbl.textContent=nx;lbl.style.color=""}
+      if(swapped)lbl.style.opacity=String(Math.min(1,(u-.35)/.5));
+      if(u<1)requestAnimationFrame(rest);else{slide.__rested=1;if(slide.__swap)slide.__swap()}})()}
   function end(){if(!drag)return;var ok=drag.d>max()*.8;drag=null;if(ok)settle(max(),finish);else settle(0)}
   knob.onpointerup=end;knob.onpointercancel=end;
   slide.onclick=function(e){if(e.target.closest(".knob")||drag||busy)return;if(!window.__posP)window.__posP=getPos();settle(max(),finish)};
