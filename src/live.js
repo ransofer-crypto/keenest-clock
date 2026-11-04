@@ -43,7 +43,7 @@ async function loadWeather(){var key="kc-wx-"+iso(new Date()),c=ls(key);if(c!==n
 
 /* ---------- location ---------- */
 function getPos(){return new Promise(function(res){if(!navigator.geolocation)return res(null);
-  navigator.geolocation.getCurrentPosition(function(p){res({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy})},function(){res(null)},{enableHighAccuracy:true,timeout:9000,maximumAge:60000})})}
+  navigator.geolocation.getCurrentPosition(function(p){res({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy})},function(){res(null)},{enableHighAccuracy:false,timeout:5000,maximumAge:120000})})}
 function distM(a,b){var R=6371000,t=Math.PI/180,dLat=(b.lat-a.lat)*t,dLng=(b.lng-a.lng)*t,x=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(a.lat*t)*Math.cos(b.lat*t)*Math.sin(dLng/2)*Math.sin(dLng/2);return 2*R*Math.asin(Math.sqrt(x))}
 function whereIs(pos){var o=D.office;if(!pos||!o||!o.lat)return "unknown";return distM(pos,o)<=(o.radius||200)+Math.min(pos.acc||0,150)?"office":"out"}
 async function geocodeOffice(){if(!isMgr()||!D.office||D.office.lat||!D.office.address)return;
@@ -75,7 +75,7 @@ function forgotOut(p){var b=pop('<h3>שכחת לצאת</h3><p class="sub">'+HEB_
 var forgotAsked={};
 function afterToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);
   if(p&&!p.out){setVeil("in");playLook(todayLook())}else if(p&&p.out){setVeil("out");playLook(todayLook())}else{FX.stop();setVeil("")}
-  $("#whereBtn").onclick=whereDialog;bindSlide();
+  $("#whereBtn").onclick=whereDialog;bindSlide();if(!(p&&p.out)&&!window.__posP)window.__posP=getPos();
   var open=D.punches.find(function(q){return q.emp===e.id&&!q.out&&q.date<g});
   if(open&&!forgotAsked[open.date]&&!D.reqs.some(function(r){return r.type==="fix"&&r.emp===e.id&&r.date===open.date&&r.status==="pending"})){forgotAsked[open.date]=1;setTimeout(function(){forgotOut(open)},700)}}
 function viewToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g),look=todayLook(),vacToday=onVac(e.id,g,"ok");
@@ -303,7 +303,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=20;
+APP_VERSION=21;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
@@ -331,7 +331,7 @@ function bindSlide(){var slide=$("#slide"),knob=$("#knob"),lbl=$("#slbl"),sky=$(
     sky.style.transition="background .7s cubic-bezier(.32,.72,0,1)";sky.style.background="rgb("+fc+")";
     lbl.style.transition="opacity .35s ease";lbl.style.opacity="0";
     setTimeout(function(){lbl.textContent=partOfDay();lbl.style.color="#fff";lbl.style.opacity="1"},300);
-    setTimeout(function(){slide.style.transition="opacity .35s cubic-bezier(.32,.72,0,1)";slide.style.opacity="0";setTimeout(function(){window.__slideIn=1;act()},300)},650)}
+    setTimeout(function(){act()},520)}
   function end(){if(!drag)return;var ok=drag.d>max()*.8;drag=null;if(ok)settle(max(),finish);else settle(0)}
   knob.onpointerup=end;knob.onpointercancel=end;
   slide.onclick=function(e){if(e.target.closest(".knob")||drag||busy)return;if(!window.__posP)window.__posP=getPos();settle(max(),finish)};

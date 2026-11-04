@@ -176,7 +176,7 @@ header.top{margin-top:14px}
 .mock.enter .t .dg{display:inline-block;animation:digit .75s cubic-bezier(.32,.72,0,1) both;animation-delay:calc(.16s + var(--i) * .05s)}
 .mock.enter .t.rise{animation:none}
 .mock.enter .where{animation:arrive .8s cubic-bezier(.32,.72,0,1) .42s both}
-.mock.enter .slide{animation:arrive .9s cubic-bezier(.32,.72,0,1) .5s both}
+.mock.enter .slide{animation:arrive .7s cubic-bezier(.32,.72,0,1) .3s both}
 @keyframes arrive{from{opacity:0;transform:translateY(10px);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
 @keyframes digit{from{opacity:0;transform:translateY(.45em) scale(.96);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
 @media (prefers-reduced-motion:reduce){.veil.wash,.mock.enter *{animation:none!important}}
