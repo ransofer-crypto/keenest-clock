@@ -298,11 +298,11 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
       return '<div class="rp-p"><button type="button" class="rp-t" data-exp="'+r.e.id+'"><i class="pd '+r.e.cls+'"></i><b>'+esc(r.e.name)+'</b><span class="rp-s"><span><b>'+r.ps.length+'</b> ימים</span><span><b>'+r.vac+'</b> חופשה</span><span><b>'+r.sick+'</b> מחלה</span></span><span class="ltr rp-h">'+hhmm(r.mn)+'<i> / '+Math.round(r.tgt/60)+"</i></span></button>"+
         '<div class="rp-bar"><i style="width:'+w+'%"></i><i class="v" style="width:'+o+'%"></i>'+(cur&&mk<100?'<em style="right:'+mk+'%"></em>':"")+"</div>"+
         '<div hidden id="x'+r.e.id+'">'+(r.ps.length?r.ps.map(function(p){return '<div class="drow"><span>'+HEB_DAYS[parse(p.date).getDay()].slice(0,1)+"׳ "+parse(p.date).getDate()+'</span><span class="nn">'+esc(p.note||(p.inLoc==="out"?"מחוץ למשרד":""))+'</span><span class="tt">'+p.in+"–"+p.out+" · "+dur(mins(p.out)-mins(p.in))+"</span></div>"}).join(""):'<p class="sub">אין ימים בחודש הזה</p>')+"</div></div>"}).join("")+
-    '<div class="rp-key"><span><i></i>שעות</span><span><i class="v"></i>חופשה ומחלה</span>'+(cur?'<span><i class="m"></i>היעד*</span>':"")+'</div><p class="rp-note">* מחושב לפי '+DAY_H+' שעות עבודה ביום</p>'+
+    '<div class="rp-key"><span><i></i>שעות</span><span><i class="v"></i>חופשה ומחלה</span>'+(cur?'<span><i class="m"></i>היעד</span>':"")+'</div><p class="rp-note">היעד מחושב לפי '+DAY_H+' שעות עבודה ביום</p>'+
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=18;
+APP_VERSION=19;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}

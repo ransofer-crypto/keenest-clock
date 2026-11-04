@@ -161,11 +161,12 @@ header.top{margin-top:14px}
 /* clock-out slides the other way */
 .slide.exit .knob{right:auto;left:5px}
 /* report rows line up in columns: name · counts (centred) · hours */
-.rp-t{display:grid!important;grid-template-columns:auto 4.6em minmax(0,1fr) auto;gap:8px}
-.rp-t .rp-s{display:grid;grid-template-columns:repeat(3,auto);justify-content:center;gap:12px;font-size:12px;color:var(--muted)}
+.rp-t{display:grid!important;grid-template-columns:auto 3.4em minmax(0,1fr) auto;gap:6px}
+.rp-t .rp-s{display:grid;grid-template-columns:repeat(3,auto);justify-content:start;gap:12px;font-size:12px;color:var(--muted)}
 .rp-t .rp-s b{color:var(--ink);font-size:13px;font-weight:700;margin-inline-end:2px}
 .rp-bar{overflow:hidden}
 .rp-bar em{top:0!important;bottom:0!important;width:2px}
+.rp-h{color:var(--k-blue)!important}.rp-h i{color:var(--muted)}
 .rp-note{margin:4px 2px 0;font-size:11.5px;color:var(--ink3)}
 /* manager avatars, same colors as the work board */
 .av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
