@@ -171,15 +171,17 @@ header.top{margin-top:14px}
 /* clock-in entrance: the tint washes up from the slider, then everything arrives in turn */
 .veil.wash{animation:wash 1.1s cubic-bezier(.32,.72,0,1) both}
 @keyframes wash{from{clip-path:circle(0% at 50% 92%);opacity:1}to{clip-path:circle(150% at 50% 92%);opacity:1}}
-.mock.enter .hi{animation:arrive .8s cubic-bezier(.32,.72,0,1) .05s both}
-.mock.enter .l{animation:arrive .8s cubic-bezier(.32,.72,0,1) .12s both}
 .mock.enter .t .dg{display:inline-block;animation:digit .75s cubic-bezier(.32,.72,0,1) both;animation-delay:calc(.16s + var(--i) * .05s)}
 .mock.enter .t.rise{animation:none}
-.mock.enter .where{animation:arrive .8s cubic-bezier(.32,.72,0,1) .42s both}
-.mock.enter .slide{animation:arrive .7s cubic-bezier(.32,.72,0,1) .3s both}
+.mock.enter .slide{animation:sfade .45s cubic-bezier(.32,.72,0,1) both}
+@keyframes sfade{from{opacity:.4}to{opacity:1}}
 @keyframes arrive{from{opacity:0;transform:translateY(10px);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
 @keyframes digit{from{opacity:0;transform:translateY(.45em) scale(.96);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
 @media (prefers-reduced-motion:reduce){.veil.wash,.mock.enter *{animation:none!important}}
+/* a slightly thicker slider */
+.slide{height:66px!important}
+.knob{width:56px!important;height:56px!important;top:5px!important}
+.slide.exit .knob{left:5px}
 /* manager avatars, same colors as the work board */
 .av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
 .av.z{background:linear-gradient(135deg,#4CC98A,#1F8A55);color:#fff}

@@ -74,7 +74,8 @@ function forgotOut(p){var b=pop('<h3>שכחת לצאת</h3><p class="sub">'+HEB_
   b.querySelector(".bs").onclick=closePop;b.querySelector("#foOk").onclick=async function(){var t=b.querySelector("#fo").value;if(!t)return;closePop();try{await rpc("forgot_out",{p_day:p.date,t:t});await refresh();toast("נשלח לאישור של רן וצפריר")}catch(e){toast(errMsg(e))}}}
 var forgotAsked={};
 function afterToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);
-  if(p&&!p.out){setVeil("in");playLook(todayLook())}else if(p&&p.out){setVeil("out");playLook(todayLook())}else{FX.stop();setVeil("")}
+  var keep=window.__fxOn&&window.__fxDay===g&&window.__fxWho===e.id;
+  if(p){setVeil(p.out?"out":"in");if(!keep){playLook(todayLook());window.__fxOn=1;window.__fxDay=g;window.__fxWho=e.id}}else{FX.stop();window.__fxOn=0;setVeil("")}
   $("#whereBtn").onclick=whereDialog;bindSlide();if(!(p&&p.out)&&!window.__posP)window.__posP=getPos();
   var open=D.punches.find(function(q){return q.emp===e.id&&!q.out&&q.date<g});
   if(open&&!forgotAsked[open.date]&&!D.reqs.some(function(r){return r.type==="fix"&&r.emp===e.id&&r.date===open.date&&r.status==="pending"})){forgotAsked[open.date]=1;setTimeout(function(){forgotOut(open)},700)}}
@@ -86,7 +87,7 @@ function viewToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g),look=to
   var sad=look.fx&&look.fx[0]==="נר תשעה באב",hi=sad?e.name:partOfDay()+", "+e.name;
   var rise=window.__rise?" rise":"";
   if(window.__rise)tHtml=tHtml.replace(/>([0-9:]{4,5})</g,function(m,t){return ">"+t.split("").map(function(ch,i){return '<span class="dg" style="--i:'+i+'">'+ch+"</span>"}).join("")+"<"}).replace(/>([0-9:]{4,5})(<span class="dash">)/,function(m,t,rest){return ">"+t.split("").map(function(ch,i){return '<span class="dg" style="--i:'+i+'">'+ch+"</span>"}).join("")+rest});
-  return '<section class="mock'+(window.__rise?" enter":"")+'"><span class="hi">'+esc(hi)+'</span><p class="q'+(st==="before"?" hide":" rise")+'">'+esc(look.q)+'</p><span class="sp big"></span>'+
+  return '<section class="mock'+(window.__rise?" enter":"")+'"><span class="hi">'+esc(hi)+'</span><p class="q'+(st==="before"?" hide":(window.__rise&&st==="in"||!window.__rise&&!window.__fxOn?" rise":""))+'">'+esc(look.q)+'</p><span class="sp big"></span>'+
     '<span class="l">יום '+HEB_DAYS[new Date().getDay()]+", "+nice(g)+"</span>"+tHtml+'<button type="button" class="where'+(note?" on":"")+'" id="whereBtn"><svg><use href="#i-pin"/></svg><span>'+(note?esc(note):"מחוץ למשרד היום?")+"</span></button>"+flag+
     '<span class="sp"></span><div class="slide'+(st==="in"?" exit":"")+(st==="done"?" done":"")+'" id="slide"><span class="knob" id="knob"><svg><use href="#i-arrow"/></svg></span><span class="lbl" id="slbl">'+(st==="before"?"החלק לכניסה":st==="in"?"החלק ליציאה":"יום טוב, נתראה מחר")+"</span></div></section>"}
 function whereDialog(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);var cur=(p&&p.note)||D.dayNote||"";
@@ -169,8 +170,8 @@ var BAR={light:{"":"#E6E9EC",in:"#C2E0EB",out:"#A1ADB8"},dark:{"":"#2F2F2F",in:"
 var FOOT={light:{"":"#E6E9EC",in:"#C2E0EB",out:"#E9DDD8"},dark:{"":"#2F2F2F",in:"#274953",out:"#4C3D35"}};
 function isDark(){var t=document.documentElement.getAttribute("data-theme");return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches}
 var veilNow="";
-function setVeil(c){var was=veilNow;veilNow=c||"";var el=$("#veil");el.className="veil"+(c?" "+c:"")+(c&&c!==was&&window.__wash?" wash":"");window.__wash=0;var k=isDark()?"dark":"light",m=$("#tcolor");if(m)m.setAttribute("content",BAR[k][veilNow]);document.documentElement.style.backgroundColor=FOOT[k][veilNow]}
-var _render=render;render=function(dir){_render(dir);var d=$("#mdot");if(d)d.hidden=!pendingCount()};
+function setVeil(c){var was=veilNow;veilNow=c||"";var el=$("#veil");el.className="veil"+(c?" "+c:"")+(c&&!was&&window.__wash?" wash":"");window.__wash=0;var k=isDark()?"dark":"light",m=$("#tcolor");if(m)m.setAttribute("content",BAR[k][veilNow]);document.documentElement.style.backgroundColor=FOOT[k][veilNow]}
+var _render=render;render=function(dir){if(tab!=="today")window.__fxOn=0;_render(dir);var d=$("#mdot");if(d)d.hidden=!pendingCount()};
 
 /* ---------- login ---------- */
 async function loginView(){FX.stop();setVeil("");$("#tabs").innerHTML="";$("#tabs").style.display="none";$("#demoBtn").style.visibility="hidden";
@@ -303,7 +304,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=21;
+APP_VERSION=22;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
@@ -313,7 +314,7 @@ viewToday=function(){var h=_viewToday();window.__rise=0;
 function bindSlide(){var slide=$("#slide"),knob=$("#knob"),lbl=$("#slbl"),sky=$("#sky");if(!slide||slide.classList.contains("done"))return;
   var exit=slide.classList.contains("exit"),drag=null,R=exit?RAMP_OUT:RAMP_IN,dir=exit?1:-1;
   if(exit){knob.querySelector(".k1").innerHTML='<use href="#i-sun"/>';knob.querySelector(".k2").innerHTML='<use href="#i-moon"/>'}
-  function max(){return slide.clientWidth-60}
+  function max(){return slide.clientWidth-knob.offsetWidth-10}
   /* the knob follows the finger; the colors follow the knob with a soft lag, so fast moves still blend slowly */
   var cur=0,target=0,raf=0,last=0,fast=false;
   function colors(p){lbl.style.opacity=String(Math.max(0,1-p*3));lbl.style.color=p>0.02?"rgb(255 255 255 / .85)":"";
