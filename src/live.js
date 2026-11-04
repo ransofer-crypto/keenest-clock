@@ -118,7 +118,8 @@ function patchToday(){var om=document.querySelector("#view .mock");if(tab!=="tod
     else a.replaceWith(b)});
   var oq=om.querySelector(".q"),nq=nm.querySelector(".q");if(oq&&nq){if(oq.textContent!==nq.textContent)oq.textContent=nq.textContent;oq.className=nq.className}
   var ow=om.querySelector(".where"),nw=nm.querySelector(".where");if(ow&&nw&&ow.outerHTML!==nw.outerHTML)ow.replaceWith(nw);
-  var of=om.querySelector(".locflag");if(of)of.remove();var nf=nm.querySelector(".locflag");if(nf)om.querySelector(".where").after(nf);
+  var ox=om.querySelector(".fixl");if(ox)ox.remove();var nx=nm.querySelector(".fixl");
+  var of=om.querySelector(".locflag");if(of)of.remove();var nf=nm.querySelector(".locflag");if(nf)om.querySelector(".where").after(nf);if(nx)(om.querySelector(".locflag")||om.querySelector(".where")).after(nx);
   afterToday()}
 
 /* optimistic: the screen updates at once, the server confirms in the background */
@@ -140,7 +141,7 @@ var forgotAsked={};
 function afterToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);
   var keep=window.__fxOn&&window.__fxDay===g&&window.__fxWho===e.id;
   if(p){setVeil(p.out?"out":"in");if(!keep){playLook(todayLook());window.__fxOn=1;window.__fxDay=g;window.__fxWho=e.id}}else{FX.stop();window.__fxOn=0;setVeil("")}
-  $("#whereBtn").onclick=whereDialog;bindSlide();if(!(p&&p.out)&&!window.__posP)window.__posP=getPos();
+  $("#whereBtn").onclick=whereDialog;var lb=$("#lateBtn");if(lb)lb.onclick=lateDialog;bindSlide();if(!(p&&p.out)&&!window.__posP)window.__posP=getPos();
   var open=D.punches.find(function(q){return q.emp===e.id&&!q.out&&q.date<g});
   if(open&&!forgotAsked[open.date]&&!D.reqs.some(function(r){return r.type==="fix"&&r.emp===e.id&&r.date===open.date&&r.status==="pending"})){forgotAsked[open.date]=1;setTimeout(function(){forgotOut(open)},700)}}
 function viewToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g),look=todayLook(),vacToday=onVac(e.id,g,"ok");
@@ -152,7 +153,7 @@ function viewToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g),look=to
   var rise=window.__rise?" rise":"";
   if(window.__rise)tHtml=tHtml.replace(/>([0-9:]{4,5})</g,function(m,t){return ">"+t.split("").map(function(ch,i){return '<span class="dg" style="--i:'+i+'">'+ch+"</span>"}).join("")+"<"}).replace(/>([0-9:]{4,5})(<span class="dash">)/,function(m,t,rest){return ">"+t.split("").map(function(ch,i){return '<span class="dg" style="--i:'+i+'">'+ch+"</span>"}).join("")+rest});
   return '<section class="mock'+(window.__rise?" enter":"")+'"><span class="hi">'+esc(hi)+'</span><p class="q'+(st==="before"?" hide":(window.__rise&&st==="in"||!window.__rise&&!window.__fxOn?" rise":""))+'">'+esc(look.q)+'</p><span class="sp big"></span>'+
-    '<span class="l">יום '+HEB_DAYS[new Date().getDay()]+", "+nice(g)+"</span>"+tHtml+'<button type="button" class="where'+(note?" on":"")+'" id="whereBtn"><svg><use href="#i-pin"/></svg><span>'+(note?esc(note):"מחוץ למשרד היום?")+"</span></button>"+flag+
+    '<span class="l">יום '+HEB_DAYS[new Date().getDay()]+", "+nice(g)+"</span>"+tHtml+'<button type="button" class="where'+(note?" on":"")+'" id="whereBtn"><svg><use href="#i-pin"/></svg><span>'+(note?esc(note):"מחוץ למשרד היום?")+"</span></button>"+flag+lateLink(st,e,g)+
     '<span class="sp"></span><div class="slide'+(st==="in"?" exit":"")+(st==="done"?" done":"")+'" id="slide"><span class="knob" id="knob"><svg><use href="#i-arrow"/></svg></span><span class="lbl" id="slbl">'+(st==="before"?"החלק לכניסה":st==="in"?"החלק ליציאה":"יום טוב, נתראה מחר")+"</span></div></section>"}
 function whereDialog(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);var cur=(p&&p.note)||D.dayNote||"";
   var b=pop('<h3>מחוץ למשרד היום?</h3><p class="sub">אפשר לכתוב איפה אתה, למשל צילומים</p><div class="chips">'+["צילומים","פגישה אצל לקוח","עבודה מהבית"].map(function(c){return '<button type="button">'+c+"</button>"}).join("")+'</div><textarea class="note" id="wn" placeholder="צילומים בנמל תל אביב">'+esc(cur)+'</textarea><div class="btns"><button class="bp" id="wOk">שמירה</button>'+(cur?'<button class="bred" id="wDel">בעצם אני במשרד</button>':"")+'<button class="bs">ביטול</button></div>');
@@ -166,6 +167,17 @@ function todayLook(){return dayLook(new Date(),emp(me()),null)}
 function partOfDay(){var h=new Date().getHours();return h>=5&&h<12?"בוקר טוב":h>=12&&h<17?"צהריים טובים":h>=17&&h<21?"ערב טוב":"לילה טוב"}
 
 /* ---------- requests ---------- */
+/* forgot to clock in on time: a quiet link under the time; once sent it just says it's waiting */
+function lateLink(st,e,g){if(st==="before")return "";
+  var w=D.reqs.filter(function(r){return r.type==="fix"&&r.emp===e.id&&r.date===g&&r.status==="pending"})[0];
+  if(w)return '<span class="fixl wait">תיקון ל־'+(w.inT||"")+(w.outT?" – "+w.outT:"")+" מחכה לאישור</span>";
+  return '<button type="button" class="fixl" id="lateBtn">החתמת באיחור? בקשה לתיקון</button>'}
+function lateDialog(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);if(!p)return;if(p.out){fixDialog(e.id,g);return}
+  var b=pop('<h3>מתי נכנסת?</h3><p class="sub">החתמת ב־'+p.in+'. השעה שתכתוב תישלח לאישור</p><div class="form"><div class="fld"><label for="li">שעת כניסה</label><input id="li" type="time" value="09:00"></div></div><textarea class="note" id="lr" placeholder="למשל שכחתי להחתים כשהגעתי"></textarea><div class="btns"><button class="bp" id="lOk">שליחה לאישור</button><button class="bs">ביטול</button></div>');
+  b.querySelector(".bs").onclick=closePop;
+  b.querySelector("#lOk").onclick=async function(){var t=b.querySelector("#li").value;if(!t)return;var n=b.querySelector("#lr").value.trim()||"שכחתי להחתים בזמן";closePop();
+    var tmp={id:"tmp-fix",emp:e.id,type:"fix",status:"pending",date:g,inT:t,outT:"",oldIn:p.in,oldOut:"",note:n,created:g};D.reqs.push(tmp);patchToday();
+    try{await rpc("request_fix",{p_day:g,p_in:t,p_out:null,n:n});await refresh()}catch(x){D.reqs=D.reqs.filter(function(r){return r!==tmp});patchToday();toast(errMsg(x))}}}
 function fixDialog(id,g){var p=punchOf(id,g);if(g>iso(new Date()))return;var b=pop('<h3>תיקון שעות</h3><p class="sub">'+HEB_DAYS[parse(g).getDay()]+", "+nice(g)+'</p><div class="form"><div class="fld"><label for="fi">כניסה</label><input id="fi" type="time" value="'+(p?p.in:"09:00")+'"></div><div class="fld"><label for="fo2">יציאה</label><input id="fo2" type="time" value="'+(p&&p.out?p.out:"18:00")+'"></div></div><textarea class="note" id="fr" placeholder="מה קרה? למשל שכחתי להחתים"></textarea><div class="btns"><button class="bp" id="fOk">שליחה לאישור</button><button class="bs">ביטול</button></div>');
   b.querySelector(".bs").onclick=closePop;b.querySelector("#fOk").onclick=async function(){var a=b.querySelector("#fi").value,c=b.querySelector("#fo2").value;if(!a||!c)return;var n=b.querySelector("#fr").value.trim();closePop();
     try{await rpc("request_fix",{p_day:g,p_in:a,p_out:c,n:n});await refresh();toast("התיקון נשלח לאישור")}catch(e){toast(errMsg(e))}}}
@@ -334,7 +346,8 @@ function viewTeam(){var s=addDays(sundayOf(new Date()),weekOff*7),today=iso(new 
 /* approvals: one card per request */
 function viewApprove(){var pend=D.reqs.filter(function(r){return r.status==="pending"}).sort(function(a,b){return a.created<b.created?-1:1}),done=D.reqs.filter(function(r){return r.status!=="pending"&&r.type!=="sick"}).slice(-5).reverse();
   function card(r){var e=emp(r.emp),title,small,kind;
-    if(r.type==="fix"){kind="תיקון שעות · "+HEB_DAYS[parse(r.date).getDay()]+", "+nice(r.date);title='<span class="ltr">'+(r.inT||"")+" – "+(r.outT||"")+"</span>";small=r.oldOut?"היה רשום "+(r.oldIn||"")+" – "+r.oldOut:(r.oldIn?"נכנס ב־"+r.oldIn+", בלי יציאה":"")}
+    if(r.type==="fix"&&!r.outT){kind="תיקון שעת כניסה · "+HEB_DAYS[parse(r.date).getDay()]+", "+nice(r.date);title="נכנס ב־"+(r.inT||"");small=r.oldIn?"החתים ב־"+r.oldIn:""}
+    else if(r.type==="fix"){kind="תיקון שעות · "+HEB_DAYS[parse(r.date).getDay()]+", "+nice(r.date);title='<span class="ltr">'+(r.inT||"")+" – "+(r.outT||"")+"</span>";small=r.oldOut?"היה רשום "+(r.oldIn||"")+" – "+r.oldOut:(r.oldIn?"נכנס ב־"+r.oldIn+", בלי יציאה":"")}
     else{kind="בקשת חופשה";title=r.from===r.to?nice(r.from):nice(r.from)+" עד "+nice(r.to);small=r.days+" ימי עבודה · נשארו "+(e.vac-vacUsed(e.id))}
     return '<article class="rq-card"><div class="rq-who"><i class="pd '+e.cls+'"></i><div><b>'+esc(e.name)+"</b><small>"+kind+"</small></div>"+(r.late?'<span class="badge wait">מאוחר</span>':"")+'</div>'+
       '<div class="rq-what">'+title+(small?"<small>"+esc(small)+"</small>":"")+(r.note?'<small class="q">"'+esc(r.note)+'"</small>':"")+'</div>'+
@@ -370,7 +383,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=32;
+APP_VERSION=33;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
