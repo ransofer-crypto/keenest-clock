@@ -1,5 +1,5 @@
 /* Keenest clock service worker: keeps the app shell for offline starts; always asks the server first. */
-const CACHE = "kclock-v6";
+const CACHE = "kclock-v7";
 const SHELL = ["./", "index.html", "supabase.js", "manifest.webmanifest", "icons/clock-192.png", "icons/clock-apple-180.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
