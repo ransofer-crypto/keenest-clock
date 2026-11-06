@@ -22,7 +22,7 @@ async function loadAll(){
   var since=iso(addDays(new Date(),-400));
   var res=await Promise.all([sb.from("employees").select("*"),sb.from("punches").select("*").gte("day",since),sb.from("requests").select("*").order("created_at"),sb.from("settings").select("*")]);
   res.forEach(function(r){if(r.error)throw r.error});
-  D.all=res[0].data.map(function(x){return {id:x.id,name:x.name,cls:x.cls||"a",start:x.start_date||"",birthday:x.birthday||"",vac:x.vac_per_year,role:x.role,email:x.email,code:x.invite_code}});
+  D.all=res[0].data.filter(function(x){return x.active!==false}).map(function(x){return {id:x.id,name:x.name,cls:x.cls||"a",start:x.start_date||"",birthday:x.birthday||"",vac:x.vac_per_year,role:x.role,email:x.email,code:x.invite_code}});
   D.all.sort(function(a,b){return a.role===b.role?(a.name<b.name?-1:1):(a.role==="employee"?-1:1)});
   D.emps=D.all.slice();
   D.punches=res[1].data.filter(function(p){return p.in_time}).map(function(p){return {id:p.id,emp:p.emp,date:p.day,in:t5(p.in_time),out:t5(p.out_time),inLoc:p.in_loc||"",outLoc:p.out_loc||"",note:p.note||"",pending:p.pending}});
@@ -53,7 +53,7 @@ async function geocodeOffice(){if(!isMgr()||!D.office||D.office.lat||!D.office.a
 /* ---------- today: real actions ---------- */
 var busy=false;
 async function act(){if(busy)return;var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);if(p&&p.out)return;busy=true;
-  var pos=await (window.__posP||getPos()),loc=whereIs(pos);window.__posP=null;busy=false;
+  var pos=noLoc()?null:await (window.__posP||getPos()),loc=whereIs(pos);window.__posP=null;busy=false;
   if(isMgr()&&emp(me()).name==="רן"){if(!p)clockIn(loc,pos);else clockOut(loc,pos,null);return} /* Ran often works from home: no outside-office warnings for him (Tzafrir gets them again, by request) */
   if(!p){if(loc==="out"){var b=pop('<h3>אתה לא במשרד</h3><p>בטוח שאתה רוצה לעשות כניסה מכאן?</p><div class="btns"><button class="bp" id="goIn">כניסה בכל זאת</button><button class="bs">ביטול</button></div>');
       b.querySelector("#goIn").onclick=function(){closePop();clockIn(loc,pos)};b.querySelector(".bs").onclick=function(){closePop();render()};return}clockIn(loc,pos);return}
@@ -141,7 +141,7 @@ var forgotAsked={};
 function afterToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);
   var keep=window.__fxOn&&window.__fxDay===g&&window.__fxWho===e.id;
   if(p){setVeil(p.out?"out":"in");if(!keep){playLook(todayLook());window.__fxOn=1;window.__fxDay=g;window.__fxWho=e.id}}else{FX.stop();window.__fxOn=0;setVeil("")}
-  $("#whereBtn").onclick=whereDialog;var lb=$("#lateBtn");if(lb)lb.onclick=lateDialog;bindSlide();if(!(p&&p.out)&&!window.__posP)window.__posP=getPos();
+  $("#whereBtn").onclick=whereDialog;var lb=$("#lateBtn");if(lb)lb.onclick=lateDialog;var fb=$("#forgotBtn");if(fb)fb.onclick=function(){var q=D.punches.find(function(x){return x.emp===e.id&&x.date===fb.dataset.d});if(q)forgotOut(q)};bindSlide();
   var open=D.punches.find(function(q){return q.emp===e.id&&!q.out&&q.date<g});
   if(open&&!forgotAsked[open.date]&&!D.reqs.some(function(r){return r.type==="fix"&&r.emp===e.id&&r.date===open.date&&r.status==="pending"})){forgotAsked[open.date]=1;setTimeout(function(){forgotOut(open)},700)}}
 function viewToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g),look=todayLook(),vacToday=onVac(e.id,g,"ok");
@@ -166,9 +166,15 @@ function todayLook(){return dayLook(new Date(),emp(me()),null)}
 /* greeting by the hour: morning 5–12, noon 12–17, evening 17–21, night after that */
 function partOfDay(){var h=new Date().getHours();return h>=5&&h<12?"בוקר טוב":h>=12&&h<17?"צהריים טובים":h>=17&&h<21?"ערב טוב":"לילה טוב"}
 
+/* Ran works from home a lot and gets no warnings, so his phone is never asked for its location */
+function noLoc(){var e=emp(me());return !!(e&&e.role==="manager"&&e.name==="רן")}
 /* ---------- requests ---------- */
 /* forgot to clock in on time: a quiet link under the time; once sent it just says it's waiting */
-function lateLink(st,e,g){if(st==="before")return "";
+function lateLink(st,e,g){
+  var open=D.punches.find(function(q){return q.emp===e.id&&!q.out&&q.date<g});
+  if(open&&!D.reqs.some(function(r){return r.type==="fix"&&r.emp===e.id&&r.date===open.date&&r.status==="pending"}))
+    return '<button type="button" class="fixl" id="forgotBtn" data-d="'+open.date+'">שכחת לצאת ביום '+HEB_DAYS[parse(open.date).getDay()]+'? בקשה לתיקון</button>';
+  if(st==="before")return "";
   var w=D.reqs.filter(function(r){return r.type==="fix"&&r.emp===e.id&&r.date===g&&r.status==="pending"})[0];
   if(w)return '<span class="fixl wait">תיקון ל־'+(w.inT||"")+(w.outT?" – "+w.outT:"")+" מחכה לאישור</span>";
   return '<button type="button" class="fixl" id="lateBtn">החתמת באיחור? בקשה לתיקון</button>'}
@@ -353,7 +359,7 @@ function viewApprove(){var pend=D.reqs.filter(function(r){return r.status==="pen
       '<div class="rq-what">'+title+(small?"<small>"+esc(small)+"</small>":"")+(r.note?'<small class="q">"'+esc(r.note)+'"</small>':"")+'</div>'+
       '<div class="rq-btns"><button type="button" class="bs2" data-no="'+r.id+'">לא עכשיו</button><button type="button" class="bp2" data-ok="'+r.id+'">אישור</button></div></article>'}
   return '<div class="ap"><h1>לאישור</h1><span class="sub">'+(pend.length?(pend.length===1?"בקשה אחת מחכה":pend.length+" בקשות מחכות"):"הכול טופל")+"</span>"+
-    (pend.length?pend.map(card).join(""):'<p class="ap-empty">כשעדי, שלו או צפריר יבקשו חופשה או תיקון שעות, זה יופיע כאן.</p>')+
+    (pend.length?pend.map(card).join(""):'<p class="ap-empty">כשמישהו יבקש חופשה או תיקון שעות, זה יופיע כאן.</p>')+
     (done.length?'<p class="hd">טופלו לאחרונה</p><div class="ap-done">'+done.map(function(r){var e=emp(r.emp);return '<div class="ap-row"><span>'+esc(e.name)+" · "+reqLabel(r)+"</span>"+statusBadge(r)+"</div>"}).join("")+"</div>":"")+"</div>"}
 
 document.addEventListener("click",function(e){if(e.target.closest("#wPrev")){weekOff--;render("a-tr")}else if(e.target.closest("#wNext")&&weekOff<0){weekOff++;render("a-tl")}});
@@ -383,7 +389,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=34;
+APP_VERSION=35;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
@@ -403,7 +409,7 @@ function bindSlide(){var slide=$("#slide"),knob=$("#knob"),lbl=$("#slbl"),sky=$(
   function tick(t){var dt=last?Math.min(64,t-last)/1000:0.016;last=t;cur+=(target-cur)*(1-Math.exp(-dt/(fast?0.12:0.28)));if(Math.abs(target-cur)<0.0015)cur=target;colors(cur);if(cur!==target)raf=requestAnimationFrame(tick);else{raf=0;last=0}}
   function paint(d){target=Math.max(0,Math.min(1,d/max()));knob.style.transform="translateX("+(dir*d)+"px)";if(!raf)raf=requestAnimationFrame(tick)}
   colors(0);knob.style.transform="translateX(0px)";
-  knob.onpointerdown=function(e){if(busy)return;if(!window.__posP)window.__posP=getPos();drag={x:e.clientX,d:0};knob.setPointerCapture(e.pointerId);knob.style.transition="none";sky.style.transition="none"};
+  knob.onpointerdown=function(e){if(busy)return;if(!window.__posP&&!noLoc())window.__posP=getPos();drag={x:e.clientX,d:0};knob.setPointerCapture(e.pointerId);knob.style.transition="none";sky.style.transition="none"};
   knob.onpointermove=function(e){if(!drag)return;drag.d=Math.max(0,Math.min(max(),(e.clientX-drag.x)*dir));paint(drag.d)};
   function settle(to,cb){var from=Math.abs(parseFloat((knob.style.transform.match(/-?[\d.]+/)||[0])[0]))||0,t0=performance.now(),dur=Math.max(200,(to>0?560:750)*Math.abs(to-from)/Math.max(1,max()));
     (function step(){var u=Math.min(1,(performance.now()-t0)/dur),e2=u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;paint(from+(to-from)*e2);if(u<1)requestAnimationFrame(step);else if(cb)cb()})()}
