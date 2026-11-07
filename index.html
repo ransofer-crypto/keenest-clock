@@ -1938,7 +1938,7 @@ async function geocodeOffice(){if(!isMgr()||!D.office||D.office.lat||!D.office.a
 /* ---------- today: real actions ---------- */
 var busy=false;
 async function act(){if(busy)return;var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);if(p&&p.out)return;busy=true;
-  var pos=noLoc()?null:await (window.__posP||getPos()),loc=whereIs(pos);window.__posP=null;busy=false;
+  var pos=noLoc()?null:await (window.__posP||locate()),loc=pos&&pos.net?"office":whereIs(pos);if(pos&&pos.net)pos=null;window.__posP=null;busy=false;
   if(isMgr()&&emp(me()).name==="רן"){if(!p)clockIn(loc,pos);else clockOut(loc,pos,null);return} /* Ran often works from home: no outside-office warnings for him (Tzafrir gets them again, by request) */
   if(!p){if(loc==="out"){var b=pop('<h3>אתה לא במשרד</h3><p>בטוח שאתה רוצה לעשות כניסה מכאן?</p><div class="btns"><button class="bp" id="goIn">כניסה בכל זאת</button><button class="bs">ביטול</button></div>');
       b.querySelector("#goIn").onclick=function(){closePop();clockIn(loc,pos)};b.querySelector(".bs").onclick=function(){closePop();render()};return}clockIn(loc,pos);return}
@@ -2051,6 +2051,9 @@ function todayLook(){return dayLook(new Date(),emp(me()),null)}
 /* greeting by the hour: morning 5–12, noon 12–17, evening 17–21, night after that */
 function partOfDay(){var h=new Date().getHours();return h>=5&&h<12?"בוקר טוב":h>=12&&h<17?"צהריים טובים":h>=17&&h<21?"ערב טוב":"לילה טוב"}
 
+/* on the office Wi-Fi the server recognises the network, so the phone is never asked for its location;
+   anywhere else it falls back to the phone's location */
+function locate(){return sb.rpc("at_office_net").then(function(r){return r.data===true?{net:true}:getPos()},function(){return getPos()})}
 /* Ran works from home a lot and gets no warnings, so his phone is never asked for its location */
 function noLoc(){var e=emp(me());return !!(e&&e.role==="manager"&&e.name==="רן")}
 /* ---------- requests ---------- */
@@ -2201,7 +2204,7 @@ function accountDialog(){var m=emp(me()),pend=pendingCount(),off=D.office||{},co
     '<nav class="fm-big">'+tabOrder().map(function(k){return '<button type="button" data-go="'+k+'"'+(tab===k?' class="on"':"")+'>'+TL[k][0]+(k==="approve"&&pend?'<span class="cnt2">'+pend+"</span>":"")+"</button>"}).join("")+"</nav>"+
     '<div class="fm-small">'+
       (isStandalone()?"":'<div class="fm-note">להוספה למסך הבית: בספארי, כפתור השיתוף ואז "הוספה למסך הבית".</div>')+
-      (isMgr()?'<button type="button" id="aHere"><span>מיקום המשרד</span><span>'+(off.lat?"נקבע":"עוד לא נקבע")+'</span></button>'+
+      (isMgr()?'<button type="button" id="aHere"><span>מיקום המשרד</span><span>'+(off.lat?"נקבע":"עוד לא נקבע")+'</span></button>'+'<button type="button" id="aNet"><span>וויי־פיי המשרד</span><span>'+((D.settings.office_nets||[]).length?"נשמר":"עוד לא נשמר")+'</span></button>'+
         '<button type="button" id="aCodes"><span>קודי הצטרפות</span><span>'+(codes.length?codes.length+" ממתינים":"כולם נכנסו")+'</span></button>'+
         '<button type="button" id="aReset"><span>איפוס היום שלי</span><span>לבדיקות</span></button>':"")+
       '<button type="button" id="aPush"><span>התראות</span><span>'+pushState()+'</span></button>'+
@@ -2215,6 +2218,8 @@ function accountDialog(){var m=emp(me()),pend=pendingCount(),off=D.office||{},co
   var ap=el.querySelector("#aPush");if(ap)ap.onclick=async function(){var s=ap.lastChild;if(!pushReady()){s.textContent=isStandalone()?"לא נתמך":"קודם הוספה למסך הבית";return}s.textContent="רגע…";var r=await pushSubscribe(true).catch(function(){return "error"});s.textContent=r==="on"?"פעילות":r==="denied"?"חסומות בהגדרות":r==="error"?"לא הצליח":"כבויות"};
   var rs=el.querySelector("#aReset");if(rs)rs.onclick=async function(){close();try{await rpc("reset_my_day");D.dayNote="";FX.stop();tab="today";await refresh();toast("היום שלך אופס. אפשר להיכנס שוב")}catch(e){toast(errMsg(e))}};
   var cd=el.querySelector("#aCodes");if(cd)cd.onclick=function(){var b=pop('<h3>קודי הצטרפות</h3><p class="sub">כל אחד לוחץ על השם שלו בשעון ומקליד את הקוד. אחרי שנכנס, הקוד נמחק.</p>'+(codes.length?codes.map(function(e){return '<div class="drow"><span>'+e.name+'</span><span class="nn"></span><span class="tt ltr" style="letter-spacing:.12em;font-size:17px">'+e.code+"</span></div>"}).join(""):'<p class="sub">כולם כבר נכנסו.</p>')+'<div class="btns"><button class="bs">סגירה</button></div>');b.querySelector(".bs").onclick=closePop};
+  var an=el.querySelector("#aNet");if(an)an.onclick=function(){var b=pop('<h3>וויי־פיי המשרד</h3><p class="sub">כשמישהו מחתים מהוויי־פיי של המשרד, השעון יודע שהוא במשרד בלי לבקש מיקום. צריך להיות מחובר עכשיו לוויי־פיי של המשרד.</p><div class="btns"><button class="bp" id="nOk">אני על הוויי־פיי של המשרד, שמור</button><button class="bs">ביטול</button></div>');
+    b.querySelector(".bs").onclick=closePop;b.querySelector("#nOk").onclick=async function(){closePop();try{await rpc("save_office_net");await refresh();an.lastChild.textContent="נשמר";toast("הרשת של המשרד נשמרה")}catch(e){toast(errMsg(e))}}};
   var h=el.querySelector("#aHere");if(h)h.onclick=async function(){var s=h.lastChild;s.textContent="רגע…";var p=await getPos();if(!p){s.textContent="אין גישה למיקום";return}
     D.office=Object.assign({},D.office,{lat:p.lat,lng:p.lng});var r=await sb.from("settings").update({value:D.office}).eq("key","office");s.textContent=r.error?"לא נשמר":"נקבע מכאן";toast(r.error?errMsg(r.error):"מיקום המשרד נשמר")}}
 
@@ -2274,7 +2279,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=35;
+APP_VERSION=36;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
@@ -2294,7 +2299,7 @@ function bindSlide(){var slide=$("#slide"),knob=$("#knob"),lbl=$("#slbl"),sky=$(
   function tick(t){var dt=last?Math.min(64,t-last)/1000:0.016;last=t;cur+=(target-cur)*(1-Math.exp(-dt/(fast?0.12:0.28)));if(Math.abs(target-cur)<0.0015)cur=target;colors(cur);if(cur!==target)raf=requestAnimationFrame(tick);else{raf=0;last=0}}
   function paint(d){target=Math.max(0,Math.min(1,d/max()));knob.style.transform="translateX("+(dir*d)+"px)";if(!raf)raf=requestAnimationFrame(tick)}
   colors(0);knob.style.transform="translateX(0px)";
-  knob.onpointerdown=function(e){if(busy)return;if(!window.__posP&&!noLoc())window.__posP=getPos();drag={x:e.clientX,d:0};knob.setPointerCapture(e.pointerId);knob.style.transition="none";sky.style.transition="none"};
+  knob.onpointerdown=function(e){if(busy)return;if(!window.__posP&&!noLoc())window.__posP=locate();drag={x:e.clientX,d:0};knob.setPointerCapture(e.pointerId);knob.style.transition="none";sky.style.transition="none"};
   knob.onpointermove=function(e){if(!drag)return;drag.d=Math.max(0,Math.min(max(),(e.clientX-drag.x)*dir));paint(drag.d)};
   function settle(to,cb){var from=Math.abs(parseFloat((knob.style.transform.match(/-?[\d.]+/)||[0])[0]))||0,t0=performance.now(),dur=Math.max(200,(to>0?560:750)*Math.abs(to-from)/Math.max(1,max()));
     (function step(){var u=Math.min(1,(performance.now()-t0)/dur),e2=u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;paint(from+(to-from)*e2);if(u<1)requestAnimationFrame(step);else if(cb)cb()})()}
