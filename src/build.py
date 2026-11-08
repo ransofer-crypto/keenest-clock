@@ -207,6 +207,7 @@ header.top{margin-top:14px}
 @keyframes ndpop{0%{scale:1;filter:none}35%{scale:1.045;filter:brightness(1.25) blur(.6px)}100%{scale:1;filter:none}}
 .fixl{all:unset;cursor:pointer;display:block;margin-top:4px;min-height:24px;line-height:24px;font-size:12.5px;font-weight:500;color:var(--ink3);opacity:.8;text-align:center}
 .fixl.wait{cursor:default;color:var(--k-blue);opacity:1}
+[data-cell]{cursor:pointer}
 /* the light curtain canvas */
 .aur{position:fixed;inset:0;width:100vw;height:100%;z-index:35;pointer-events:none}
 /* manager avatars, same colors as the work board */

@@ -452,6 +452,7 @@ header.top{margin-top:14px}
 @keyframes ndpop{0%{scale:1;filter:none}35%{scale:1.045;filter:brightness(1.25) blur(.6px)}100%{scale:1;filter:none}}
 .fixl{all:unset;cursor:pointer;display:block;margin-top:4px;min-height:24px;line-height:24px;font-size:12.5px;font-weight:500;color:var(--ink3);opacity:.8;text-align:center}
 .fixl.wait{cursor:default;color:var(--k-blue);opacity:1}
+[data-cell]{cursor:pointer}
 /* the light curtain canvas */
 .aur{position:fixed;inset:0;width:100vw;height:100%;z-index:35;pointer-events:none}
 /* manager avatars, same colors as the work board */
@@ -2057,6 +2058,13 @@ function locate(){return sb.rpc("at_office_net").then(function(r){return r.data=
 /* Ran works from home a lot and gets no warnings, so his phone is never asked for its location */
 function noLoc(){var e=emp(me());return !!(e&&e.role==="manager"&&e.name==="רן")}
 /* ---------- requests ---------- */
+/* manager: set anyone's times for a day directly, no approval needed */
+function editDay(id,g){var e=emp(id),p=punchOf(id,g);if(!e)return;
+  var b=pop('<h3>'+esc(e.name)+'</h3><p class="sub">'+HEB_DAYS[parse(g).getDay()]+", "+nice(g)+'</p><div class="form"><div class="fld"><label for="ei">כניסה</label><input id="ei" type="time" value="'+(p?p.in:"09:00")+'"></div><div class="fld"><label for="eo">יציאה</label><input id="eo" type="time" value="'+(p&&p.out?p.out:"")+'"></div></div><p class="sub">אפשר להשאיר יציאה ריקה אם עוד לא יצא</p><div class="btns"><button class="bp" id="eOk">שמירה</button><button class="bs">ביטול</button></div>'+(p?'<button type="button" class="fixl" id="eClr">ניקוי היום</button>':""));
+  b.querySelector(".bs").onclick=closePop;
+  async function send(a,c){closePop();try{await rpc("mgr_set_punch",{p_emp:id,p_day:g,p_in:a||null,p_out:c||null});await refresh()}catch(x){toast(errMsg(x))}}
+  b.querySelector("#eOk").onclick=function(){var a=b.querySelector("#ei").value,c=b.querySelector("#eo").value;if(!a)return;if(c&&c<=a){b.querySelector("#eo").focus();return}send(a,c)};
+  var cl=b.querySelector("#eClr");if(cl)cl.onclick=function(){send(null,null)}}
 /* forgot to clock in on time: a quiet link under the time; once sent it just says it's waiting */
 function lateLink(st,e,g){
   var open=D.punches.find(function(q){return q.emp===e.id&&!q.out&&q.date<g});
@@ -2184,6 +2192,7 @@ document.addEventListener("click",function(e){var t=e.target.closest("[data-tab]
   if(e.target.closest("#mNext")){repMonth[1]++;if(repMonth[1]>11){repMonth[1]=0;repMonth[0]++}render("a-tl");return}
   if(e.target.closest("#xls")){exportCsv();return}
   if(e.target.closest("#askVac")){vacDialog();return}if(e.target.closest("#askSick")){sickDialog();return}
+  var dc=e.target.closest("[data-cell]");if(dc&&isMgr()){var cp=dc.dataset.cell.split("|");editDay(cp[0],cp[1]);return}
   var er=e.target.closest("[data-emp]");if(er){empDialog(er.dataset.emp);return}
   var dr=e.target.closest("[data-date]");if(dr&&!isMgr()){fixDialog(me(),dr.dataset.date);return}
 });
@@ -2238,8 +2247,8 @@ function viewTeam(){var s=addDays(sundayOf(new Date()),weekOff*7),today=iso(new 
   return '<div class="tw"><div class="tw-h"><div><h1>צוות</h1><span class="sub">'+(lab?lab+" · ":"")+rng+'</span></div><div class="wnav"><button type="button" id="wPrev" aria-label="שבוע קודם"><svg><use href="#i-prev"/></svg></button><button type="button" id="wNext" aria-label="שבוע הבא"'+(weekOff>=0?" disabled":"")+'><svg><use href="#i-next"/></svg></button></div></div>'+
     (weekOff===0?'<p class="tw-now"><b>'+inNow+'</b> מתוך '+D.emps.length+" בעבודה עכשיו</p>":"")+
     '<div class="wgrid"><span></span>'+days.map(function(d){return '<span class="h'+(iso(d)===today?" t":"")+'">'+HEB_DAYS[d.getDay()].slice(0,1)+"׳ "+d.getDate()+"</span>"}).join("")+
-    D.emps.map(function(e){return '<button type="button" class="wn" data-emp="'+e.id+'"><i class="pd '+e.cls+'"></i>'+esc(e.name)+"</button>"+days.map(function(d){var g=iso(d);return g===today?cellOf(e,g).replace('class="c','class="c t'):cellOf(e,g)}).join("")}).join("")+
-    '</div><p class="tw-key"><i class="od"></i> מחוץ למשרד · לחיצה על שם פותחת את הפרטים שלו</p></div>'}
+    D.emps.map(function(e){return '<button type="button" class="wn" data-emp="'+e.id+'"><i class="pd '+e.cls+'"></i>'+esc(e.name)+"</button>"+days.map(function(d){var g=iso(d),c=cellOf(e,g);if(g===today)c=c.replace('class="c','class="c t');return g<=today?c.replace('<span class="c','<span data-cell="'+e.id+"|"+g+'" class="c'):c}).join("")}).join("")+
+    '</div><p class="tw-key"><i class="od"></i> מחוץ למשרד · לחיצה על משבצת מתקנת שעות</p></div>'}
 
 /* approvals: one card per request */
 function viewApprove(){var pend=D.reqs.filter(function(r){return r.status==="pending"}).sort(function(a,b){return a.created<b.created?-1:1}),done=D.reqs.filter(function(r){return r.status!=="pending"&&r.type!=="sick"}).slice(-5).reverse();
@@ -2281,7 +2290,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=37;
+APP_VERSION=38;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
