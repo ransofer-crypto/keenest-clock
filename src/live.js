@@ -263,7 +263,9 @@ async function loginView(){FX.stop();setVeil("");$("#tabs").innerHTML="";$("#tab
   var v=$("#view");v.innerHTML='<section class="login"><p class="q">שעון הנוכחות של קינסט</p><p class="sub">מי נכנס?</p><div class="names" id="names"><p class="sub">טוען…</p></div></section>';
   var r=await sb.rpc("login_names");if(r.error){$("#names").innerHTML='<p class="sub">אין חיבור. נסה לרענן.</p>';return}
   $("#names").innerHTML=r.data.map(function(x){return '<button type="button" class="nm" data-id="'+x.id+'"><span class="av">'+esc(x.name[0])+"</span>"+esc(x.name)+"</button>"}).join("");
-  v.querySelectorAll(".nm").forEach(function(btn){btn.onclick=function(){var x=r.data.find(function(y){return y.id===btn.dataset.id});loginForm(x)}})}
+  v.querySelectorAll(".nm").forEach(function(btn){btn.onclick=async function(){var x=r.data.find(function(y){return y.id===btn.dataset.id});
+      /* fresh check, so a new join code shows its form even if the app was left open */
+      try{var f=await sb.rpc("login_names");if(!f.error){var y=f.data.find(function(z){return z.id===x.id});if(y)x=y}}catch(e){}loginForm(x)}})}
 function loginForm(x){var reg=x.registered;
   var b=pop('<h3>'+esc(x.name)+'</h3><p class="sub">'+(reg?"הקוד האישי שלך":"פעם ראשונה? הקלד את קוד ההצטרפות שקיבלת, ובחר קוד אישי משלך")+'</p><form id="lf" class="form" autocomplete="on"><input type="email" name="username" autocomplete="username" value="'+esc(x.email)+'" hidden>'+
     (reg?"":'<div class="fld"><label for="jc">קוד הצטרפות</label><input id="jc" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 ספרות"></div>')+
@@ -394,7 +396,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=36;
+APP_VERSION=37;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
