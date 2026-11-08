@@ -171,6 +171,8 @@ function partOfDay(){var h=new Date().getHours();return h>=5&&h<12?"בוקר ט�
 function locate(){return sb.rpc("at_office_net").then(function(r){return r.data===true?{net:true}:getPos()},function(){return getPos()})}
 /* Ran works from home a lot and gets no warnings, so his phone is never asked for its location */
 function noLoc(){var e=emp(me());return !!(e&&e.role==="manager"&&e.name==="רן")}
+/* Hebrew singular: "יום עבודה אחד", not "1 ימי עבודה" */
+function wdTxt(n){return +n===1?"יום עבודה אחד":n+" ימי עבודה"}
 /* ---------- requests ---------- */
 /* manager: set anyone's times for a day directly, no approval needed */
 function editDay(id,g){var e=emp(id),p=punchOf(id,g);if(!e)return;
@@ -200,7 +202,7 @@ function fixDialog(id,g){var p=punchOf(id,g);if(g>iso(new Date()))return;var b=p
 function vacDialog(){var t0=addDays(new Date(),14);while(!isWork(t0))t0=addDays(t0,1);
   var b=pop('<h3>בקשת חופשה</h3><p class="sub">הבקשה תגיע לרן ולצפריר</p><div class="form"><div class="fld"><label for="vf">מתאריך</label><input id="vf" type="date" value="'+iso(t0)+'"></div><div class="fld"><label for="vt">עד תאריך</label><input id="vt" type="date" value="'+iso(t0)+'"></div></div><p id="vInfo"></p><textarea class="note" id="vn" placeholder="הערה, לא חובה"></textarea><div class="btns"><button class="bp" id="vOk">שליחת בקשה</button><button class="bs">ביטול</button></div>');
   function upd(){var f=b.querySelector("#vf").value,t=b.querySelector("#vt").value,info=b.querySelector("#vInfo");if(!f||!t||t<f){info.textContent="בחר תאריכים";return}
-    var n=workDays(f,t),ahead=Math.round((parse(f)-parse(iso(new Date())))/864e5),need=noticeRule(n);info.innerHTML=n+" ימי עבודה"+(ahead<need?'<br><span class="warn">מומלץ לבקש '+(need===7?"שבוע":need===14?"שבועיים":"חודש")+" מראש. אפשר לשלוח, והבקשה תסומן כמאוחרת.</span>":"")}
+    var n=workDays(f,t),ahead=Math.round((parse(f)-parse(iso(new Date())))/864e5),need=noticeRule(n);info.innerHTML=wdTxt(n)+(ahead<need?'<br><span class="warn">מומלץ לבקש '+(need===7?"שבוע":need===14?"שבועיים":"חודש")+" מראש. אפשר לשלוח, והבקשה תסומן כמאוחרת.</span>":"")}
   b.querySelector("#vf").oninput=function(){var vt=b.querySelector("#vt");if(vt.value<this.value)vt.value=this.value;upd()};b.querySelector("#vt").oninput=upd;upd();
   b.querySelector(".bs").onclick=closePop;b.querySelector("#vOk").onclick=async function(){var f=b.querySelector("#vf").value,t=b.querySelector("#vt").value;if(!f||!t||t<f)return;var n=b.querySelector("#vn").value.trim();closePop();
     try{await rpc("request_vac",{a:f,b:t,n:n});await refresh();toast("הבקשה נשלחה לרן וצפריר")}catch(e){toast(errMsg(e))}}}
@@ -371,7 +373,7 @@ function viewApprove(){var pend=D.reqs.filter(function(r){return r.status==="pen
   function card(r){var e=emp(r.emp),title,small,kind;
     if(r.type==="fix"&&!r.outT){kind="תיקון שעת כניסה · "+HEB_DAYS[parse(r.date).getDay()]+", "+nice(r.date);title="נכנס ב־"+(r.inT||"");small=r.oldIn?"החתים ב־"+r.oldIn:""}
     else if(r.type==="fix"){kind="תיקון שעות · "+HEB_DAYS[parse(r.date).getDay()]+", "+nice(r.date);title='<span class="ltr">'+(r.inT||"")+" – "+(r.outT||"")+"</span>";small=r.oldOut?"היה רשום "+(r.oldIn||"")+" – "+r.oldOut:(r.oldIn?"נכנס ב־"+r.oldIn+", בלי יציאה":"")}
-    else{kind="בקשת חופשה";title=r.from===r.to?nice(r.from):nice(r.from)+" עד "+nice(r.to);small=r.days+" ימי עבודה · נשארו "+(e.vac-vacUsed(e.id))}
+    else{kind="בקשת חופשה";title=r.from===r.to?nice(r.from):nice(r.from)+" עד "+nice(r.to);small=wdTxt(r.days)+" · נשארו "+(e.vac-vacUsed(e.id))}
     return '<article class="rq-card"><div class="rq-who"><i class="pd '+e.cls+'"></i><div><b>'+esc(e.name)+"</b><small>"+kind+"</small></div>"+(r.late?'<span class="badge wait">מאוחר</span>':"")+'</div>'+
       '<div class="rq-what">'+title+(small?"<small>"+esc(small)+"</small>":"")+(r.note?'<small class="q">"'+esc(r.note)+'"</small>':"")+'</div>'+
       '<div class="rq-btns"><button type="button" class="bs2" data-no="'+r.id+'">לא עכשיו</button><button type="button" class="bp2" data-ok="'+r.id+'">אישור</button></div></article>'}
@@ -406,7 +408,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=39;
+APP_VERSION=40;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}

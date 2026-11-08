@@ -1840,12 +1840,12 @@ function reqLabel(r){if(r.type==="fix")return "תיקון שעות · "+nice(r.d
 function statusBadge(r){if(r.type==="sick")return '<span class="badge sick">דווח</span>';return r.status==="pending"?'<span class="badge wait">מחכה לאישור</span>':r.status==="ok"?'<span class="badge ok">אושר</span>':'<span class="badge no">לא אושר</span>'}
 function viewVac(){var e=emp(me()),left=e.vac-vacUsed(e.id),mine=reqsOf(e.id).filter(function(r){return r.type!=="fix"}).sort(function(a,b){return a.from<b.from?1:-1});
   return '<div class="ph"><h1>חופשות</h1></div><div class="bal"><div><b>'+left+'</b><span>ימי חופשה נותרו</span></div><div><b>'+sickUsed(e.id)+'</b><span>ימי מחלה השנה</span></div></div><div class="two"><button class="btn" id="askVac" type="button">בקשת חופשה</button><button class="btn ghost" id="askSick" type="button">דיווח מחלה</button></div>'+
-    '<p class="hd">הבקשות שלי</p><div class="list">'+(mine.length?mine.map(function(r){return '<div class="row" data-open="'+r.id+'"><span class="main"><span class="t1">'+reqLabel(r)+'</span><span class="t2">'+(r.type==="vac"?r.days+" ימי עבודה":"")+(r.note?" · "+esc(r.note):"")+"</span></span>"+statusBadge(r)+"</div>"}).join(""):'<p class="empty">עוד אין בקשות. כשתבקש חופשה, היא תופיע כאן עם הסטטוס שלה.</p>')+"</div>"}
+    '<p class="hd">הבקשות שלי</p><div class="list">'+(mine.length?mine.map(function(r){return '<div class="row" data-open="'+r.id+'"><span class="main"><span class="t1">'+reqLabel(r)+'</span><span class="t2">'+(r.type==="vac"?wdTxt(r.days):"")+(r.note?" · "+esc(r.note):"")+"</span></span>"+statusBadge(r)+"</div>"}).join(""):'<p class="empty">עוד אין בקשות. כשתבקש חופשה, היא תופיע כאן עם הסטטוס שלה.</p>')+"</div>"}
 function noticeRule(days){return days<=2?7:days<5?14:30}
 function vacDialog(){var t0=addDays(new Date(),14);while(!isWork(t0))t0=addDays(t0,1);
   var b=pop('<h3>בקשת חופשה</h3><p class="sub">הבקשה תגיע לרן ולצפריר</p><div class="form"><div class="fld"><label for="vf">מתאריך</label><input id="vf" type="date" value="'+iso(t0)+'"></div><div class="fld"><label for="vt">עד תאריך</label><input id="vt" type="date" value="'+iso(t0)+'"></div></div><p id="vInfo"></p><textarea class="note" id="vn" placeholder="הערה, לא חובה"></textarea><div class="btns"><button class="bp" id="vOk">שליחת בקשה</button><button class="bs">ביטול</button></div>');
   function upd(){var f=b.querySelector("#vf").value,t=b.querySelector("#vt").value,info=b.querySelector("#vInfo");if(!f||!t||t<f){info.textContent="בחר תאריכים";info.className="";return}
-    var n=workDays(f,t),ahead=Math.round((parse(f)-parse(iso(new Date())))/864e5),need=noticeRule(n);info.innerHTML=n+" ימי עבודה"+(ahead<need?'<br><span class="warn">מומלץ לבקש '+(need===7?"שבוע":need===14?"שבועיים":"חודש")+" מראש. אפשר לשלוח, והבקשה תסומן כמאוחרת.</span>":"");info.className=""}
+    var n=workDays(f,t),ahead=Math.round((parse(f)-parse(iso(new Date())))/864e5),need=noticeRule(n);info.innerHTML=wdTxt(n)+(ahead<need?'<br><span class="warn">מומלץ לבקש '+(need===7?"שבוע":need===14?"שבועיים":"חודש")+" מראש. אפשר לשלוח, והבקשה תסומן כמאוחרת.</span>":"");info.className=""}
   b.querySelector("#vf").oninput=function(){var vt=b.querySelector("#vt");if(vt.value<this.value)vt.value=this.value;upd()};b.querySelector("#vt").oninput=upd;upd();
   b.querySelector(".bs").onclick=closePop;b.querySelector("#vOk").onclick=function(){var f=b.querySelector("#vf").value,t=b.querySelector("#vt").value;if(!f||!t||t<f)return;var n=workDays(f,t),ahead=Math.round((parse(f)-parse(iso(new Date())))/864e5);
     D.reqs.push({id:uid(),emp:me(),type:"vac",from:f,to:t,days:n,status:"pending",late:ahead<noticeRule(n),note:b.querySelector("#vn").value.trim(),created:iso(new Date())});save();closePop();render();toast("הבקשה נשלחה לרן וצפריר")}}
@@ -1861,7 +1861,7 @@ function empDialog(id){var e=emp(id);var b=pop('<h3>'+e.name+'</h3><p class="sub
 
 /* manager: approvals */
 function viewApprove(){var pend=D.reqs.filter(function(r){return r.status==="pending"}).sort(function(a,b){return a.created<b.created?-1:1}),done=D.reqs.filter(function(r){return r.status!=="pending"&&r.type!=="sick"}).slice(-5).reverse();
-  return '<div class="ph"><h1>לאישור</h1></div><div class="list">'+(pend.length?pend.map(function(r){var e=emp(r.emp),det=r.type==="fix"?("כניסה "+r.inT+" · יציאה "+r.outT+(r.oldOut?" (היה "+r.oldOut+")":"")):(r.days+" ימי עבודה · נשארו "+(e.vac-vacUsed(e.id)));
+  return '<div class="ph"><h1>לאישור</h1></div><div class="list">'+(pend.length?pend.map(function(r){var e=emp(r.emp),det=r.type==="fix"?("כניסה "+r.inT+" · יציאה "+r.outT+(r.oldOut?" (היה "+r.oldOut+")":"")):(wdTxt(r.days)+" · נשארו "+(e.vac-vacUsed(e.id)));
       return '<div class="row" data-open="'+r.id+'"><span class="av '+e.cls+'">'+e.name[0]+'</span><span class="main"><span class="t1">'+e.name+" · "+reqLabel(r)+'</span><span class="t2">'+det+(r.note?" · "+esc(r.note):"")+"</span>"+(r.late?'<span class="badge wait" style="align-self:flex-start;margin-top:3px">הוגשה מאוחר מהמדיניות</span>':"")+'</span><span class="acts"><button class="rnd no" data-no="'+r.id+'" aria-label="דחייה"><svg><use href="#i-x"/></svg></button><button class="rnd ok" data-ok="'+r.id+'" aria-label="אישור"><svg><use href="#i-check"/></svg></button></span></div>'}).join(""):'<p class="empty">אין כרגע בקשות שמחכות. כשעדי או שלו יבקשו חופשה או תיקון שעות, זה יופיע כאן.</p>')+"</div>"+
     (done.length?'<p class="hd">טופלו לאחרונה</p><div class="list">'+done.map(function(r){var e=emp(r.emp);return '<div class="row" data-open="d'+r.id+'"><span class="main"><span class="t1">'+e.name+" · "+reqLabel(r)+'</span></span>'+statusBadge(r)+"</div>"}).join("")+"</div>":"")}
 function decide(id,ok){var r=D.reqs.find(function(x){return x.id===id});if(!r)return;var prev=JSON.stringify(D);r.status=ok?"ok":"no";
@@ -1874,7 +1874,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
   return '<div class="ph"><h1>דוח חודשי</h1><div class="mnav"><button type="button" id="mPrev" aria-label="החודש הקודם"><svg><use href="#i-prev"/></svg></button><b>'+HEB_MONTHS[m]+" "+y+'</b><button type="button" id="mNext" aria-label="החודש הבא"><svg><use href="#i-next"/></svg></button></div></div>'+
     D.emps.map(function(e){var ps=D.punches.filter(function(p){return p.emp===e.id&&p.date.slice(0,7)===pre&&p.out}).sort(function(a,b){return a.date<b.date?-1:1});var tot=ps.reduce(function(s,p){return s+Math.max(0,mins(p.out)-mins(p.in))},0);
       var vac=D.reqs.filter(function(r){return r.emp===e.id&&r.type==="vac"&&r.status==="ok"&&r.from.slice(0,7)===pre}).reduce(function(s,r){return s+r.days},0),sick=D.reqs.filter(function(r){return r.emp===e.id&&r.type==="sick"&&r.from.slice(0,7)===pre}).reduce(function(s,r){return s+r.days},0),out=ps.filter(function(p){return p.inLoc==="out"||p.outLoc==="out"}).length;
-      return '<div class="empcard"><div class="emph"><span class="av '+e.cls+'">'+e.name[0]+'</span><b>'+e.name+'</b></div><div class="kpis"><div class="kpi"><b>'+ps.length+'</b><span>ימי עבודה</span></div><div class="kpi"><b class="ltr">'+dur(tot)+'</b><span>שעות</span></div><div class="kpi"><b>'+vac+" / "+sick+'</b><span>חופשה / מחלה</span></div></div>'+(out?'<p class="lbl2" style="margin:6px 4px 0">'+out+" ימים מחוץ למשרד</p>":"")+
+      return '<div class="empcard"><div class="emph"><span class="av '+e.cls+'">'+e.name[0]+'</span><b>'+e.name+'</b></div><div class="kpis"><div class="kpi"><b>'+ps.length+'</b><span>ימי עבודה</span></div><div class="kpi"><b class="ltr">'+dur(tot)+'</b><span>שעות</span></div><div class="kpi"><b>'+vac+" / "+sick+'</b><span>חופשה / מחלה</span></div></div>'+(out?'<p class="lbl2" style="margin:6px 4px 0">'+(out===1?"יום אחד מחוץ למשרד":out+" ימים מחוץ למשרד")+"</p>":"")+
         '<button class="exp" type="button" data-exp="'+e.id+'">פירוט לפי ימים</button><div hidden id="x'+e.id+'">'+(ps.length?ps.map(function(p){return '<div class="drow"><span>'+HEB_DAYS[parse(p.date).getDay()].slice(0,1)+"׳ "+parse(p.date).getDate()+'</span><span class="nn">'+esc(p.note||(p.inLoc==="out"?"מחוץ למשרד":""))+'</span><span class="tt">'+p.in+"–"+p.out+" · "+dur(mins(p.out)-mins(p.in))+"</span></div>"}).join(""):'<p class="empty">אין ימים בחודש הזה</p>')+"</div></div>"}).join("")+
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:14px">ייצוא לאקסל</button>'}
 function exportCsv(){var y=repMonth[0],m=repMonth[1],pre=y+"-"+pad(m+1),rows=[["עובד","תאריך","יום","כניסה","יציאה","שעות","מיקום","הערה"]];
@@ -2057,6 +2057,8 @@ function partOfDay(){var h=new Date().getHours();return h>=5&&h<12?"בוקר ט�
 function locate(){return sb.rpc("at_office_net").then(function(r){return r.data===true?{net:true}:getPos()},function(){return getPos()})}
 /* Ran works from home a lot and gets no warnings, so his phone is never asked for its location */
 function noLoc(){var e=emp(me());return !!(e&&e.role==="manager"&&e.name==="רן")}
+/* Hebrew singular: "יום עבודה אחד", not "1 ימי עבודה" */
+function wdTxt(n){return +n===1?"יום עבודה אחד":n+" ימי עבודה"}
 /* ---------- requests ---------- */
 /* manager: set anyone's times for a day directly, no approval needed */
 function editDay(id,g){var e=emp(id),p=punchOf(id,g);if(!e)return;
@@ -2086,7 +2088,7 @@ function fixDialog(id,g){var p=punchOf(id,g);if(g>iso(new Date()))return;var b=p
 function vacDialog(){var t0=addDays(new Date(),14);while(!isWork(t0))t0=addDays(t0,1);
   var b=pop('<h3>בקשת חופשה</h3><p class="sub">הבקשה תגיע לרן ולצפריר</p><div class="form"><div class="fld"><label for="vf">מתאריך</label><input id="vf" type="date" value="'+iso(t0)+'"></div><div class="fld"><label for="vt">עד תאריך</label><input id="vt" type="date" value="'+iso(t0)+'"></div></div><p id="vInfo"></p><textarea class="note" id="vn" placeholder="הערה, לא חובה"></textarea><div class="btns"><button class="bp" id="vOk">שליחת בקשה</button><button class="bs">ביטול</button></div>');
   function upd(){var f=b.querySelector("#vf").value,t=b.querySelector("#vt").value,info=b.querySelector("#vInfo");if(!f||!t||t<f){info.textContent="בחר תאריכים";return}
-    var n=workDays(f,t),ahead=Math.round((parse(f)-parse(iso(new Date())))/864e5),need=noticeRule(n);info.innerHTML=n+" ימי עבודה"+(ahead<need?'<br><span class="warn">מומלץ לבקש '+(need===7?"שבוע":need===14?"שבועיים":"חודש")+" מראש. אפשר לשלוח, והבקשה תסומן כמאוחרת.</span>":"")}
+    var n=workDays(f,t),ahead=Math.round((parse(f)-parse(iso(new Date())))/864e5),need=noticeRule(n);info.innerHTML=wdTxt(n)+(ahead<need?'<br><span class="warn">מומלץ לבקש '+(need===7?"שבוע":need===14?"שבועיים":"חודש")+" מראש. אפשר לשלוח, והבקשה תסומן כמאוחרת.</span>":"")}
   b.querySelector("#vf").oninput=function(){var vt=b.querySelector("#vt");if(vt.value<this.value)vt.value=this.value;upd()};b.querySelector("#vt").oninput=upd;upd();
   b.querySelector(".bs").onclick=closePop;b.querySelector("#vOk").onclick=async function(){var f=b.querySelector("#vf").value,t=b.querySelector("#vt").value;if(!f||!t||t<f)return;var n=b.querySelector("#vn").value.trim();closePop();
     try{await rpc("request_vac",{a:f,b:t,n:n});await refresh();toast("הבקשה נשלחה לרן וצפריר")}catch(e){toast(errMsg(e))}}}
@@ -2257,7 +2259,7 @@ function viewApprove(){var pend=D.reqs.filter(function(r){return r.status==="pen
   function card(r){var e=emp(r.emp),title,small,kind;
     if(r.type==="fix"&&!r.outT){kind="תיקון שעת כניסה · "+HEB_DAYS[parse(r.date).getDay()]+", "+nice(r.date);title="נכנס ב־"+(r.inT||"");small=r.oldIn?"החתים ב־"+r.oldIn:""}
     else if(r.type==="fix"){kind="תיקון שעות · "+HEB_DAYS[parse(r.date).getDay()]+", "+nice(r.date);title='<span class="ltr">'+(r.inT||"")+" – "+(r.outT||"")+"</span>";small=r.oldOut?"היה רשום "+(r.oldIn||"")+" – "+r.oldOut:(r.oldIn?"נכנס ב־"+r.oldIn+", בלי יציאה":"")}
-    else{kind="בקשת חופשה";title=r.from===r.to?nice(r.from):nice(r.from)+" עד "+nice(r.to);small=r.days+" ימי עבודה · נשארו "+(e.vac-vacUsed(e.id))}
+    else{kind="בקשת חופשה";title=r.from===r.to?nice(r.from):nice(r.from)+" עד "+nice(r.to);small=wdTxt(r.days)+" · נשארו "+(e.vac-vacUsed(e.id))}
     return '<article class="rq-card"><div class="rq-who"><i class="pd '+e.cls+'"></i><div><b>'+esc(e.name)+"</b><small>"+kind+"</small></div>"+(r.late?'<span class="badge wait">מאוחר</span>':"")+'</div>'+
       '<div class="rq-what">'+title+(small?"<small>"+esc(small)+"</small>":"")+(r.note?'<small class="q">"'+esc(r.note)+'"</small>':"")+'</div>'+
       '<div class="rq-btns"><button type="button" class="bs2" data-no="'+r.id+'">לא עכשיו</button><button type="button" class="bp2" data-ok="'+r.id+'">אישור</button></div></article>'}
@@ -2292,7 +2294,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=39;
+APP_VERSION=40;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
