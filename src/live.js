@@ -356,11 +356,13 @@ function cellOf(e,g){var p=punchOf(e.id,g),today=iso(new Date()),v=D.reqs.find(f
   if(p){var away=p.inLoc==="out"||p.outLoc==="out";return '<span class="c'+(p.pending?" w":"")+(away?" o":"")+'"'+(away?' title="'+esc(p.note||"מחוץ למשרד")+'"':"")+'>'+p.in+"<br>"+(p.out||"·")+(away?'<i class="od"></i>':"")+"</span>"}
   return '<span class="c e">'+(g<today?"–":"")+"</span>"}
 function viewTeam(){var s=addDays(sundayOf(new Date()),weekOff*7),today=iso(new Date()),days=[0,1,2,3,4].map(function(i){return addDays(s,i)});
-  var lab=weekOff===0?"השבוע":weekOff===-1?"שבוע שעבר":"";var rng=days[0].getDate()+"–"+days[4].getDate()+" ב"+HEB_MONTHS[days[4].getMonth()];
+  /* Friday and Saturday appear only in a week where someone actually worked on them */
+  [5,6].forEach(function(i){var g=iso(addDays(s,i));if(D.punches.some(function(p){return p.date===g}))days.push(addDays(s,i))});
+  var lab=weekOff===0?"השבוע":weekOff===-1?"שבוע שעבר":"";var dl=days[days.length-1],rng=days[0].getDate()+"–"+dl.getDate()+" ב"+HEB_MONTHS[dl.getMonth()];
   var inNow=D.emps.filter(function(e){var p=punchOf(e.id,today);return p&&!p.out}).length;
   return '<div class="tw"><div class="tw-h"><div><h1>צוות</h1><span class="sub">'+(lab?lab+" · ":"")+rng+'</span></div><div class="wnav"><button type="button" id="wPrev" aria-label="שבוע קודם"><svg><use href="#i-prev"/></svg></button><button type="button" id="wNext" aria-label="שבוע הבא"'+(weekOff>=0?" disabled":"")+'><svg><use href="#i-next"/></svg></button></div></div>'+
     (weekOff===0?'<p class="tw-now"><b>'+inNow+'</b> מתוך '+D.emps.length+" בעבודה עכשיו</p>":"")+
-    '<div class="wgrid"><span></span>'+days.map(function(d){return '<span class="h'+(iso(d)===today?" t":"")+'">'+HEB_DAYS[d.getDay()].slice(0,1)+"׳ "+d.getDate()+"</span>"}).join("")+
+    '<div class="wgrid" style="grid-template-columns:minmax(74px,auto) repeat('+days.length+',minmax(0,1fr))"><span></span>'+days.map(function(d){return '<span class="h'+(iso(d)===today?" t":"")+'">'+"אבגדהוש"[d.getDay()]+"׳ "+d.getDate()+"</span>"}).join("")+
     D.emps.map(function(e){return '<button type="button" class="wn" data-emp="'+e.id+'"><i class="pd '+e.cls+'"></i>'+esc(e.name)+"</button>"+days.map(function(d){var g=iso(d),c=cellOf(e,g);if(g===today)c=c.replace('class="c','class="c t');return g<=today?c.replace('<span class="c','<span data-cell="'+e.id+"|"+g+'" class="c'):c}).join("")}).join("")+
     '</div><p class="tw-key"><i class="od"></i> מחוץ למשרד · לחיצה על משבצת מתקנת שעות</p></div>'}
 
@@ -404,7 +406,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=38;
+APP_VERSION=39;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}
