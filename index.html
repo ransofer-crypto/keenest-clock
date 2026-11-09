@@ -453,6 +453,20 @@ header.top{margin-top:14px}
 .fixl{all:unset;cursor:pointer;display:block;margin-top:4px;min-height:24px;line-height:24px;font-size:12.5px;font-weight:500;color:var(--ink3);opacity:.8;text-align:center}
 .fixl.wait{cursor:default;color:var(--k-blue);opacity:1}
 [data-cell]{cursor:pointer}
+/* office settings: a quiet sub-view inside the full-screen menu */
+.fm-in>.fm-big,.fm-in>.fm-small,.fm-set{transition:opacity .32s cubic-bezier(.32,.72,0,1),transform .32s cubic-bezier(.32,.72,0,1)}
+.fm-set{display:none;flex-direction:column;flex:1;margin-top:3vh}
+.fm-in.sub>.fm-big,.fm-in.sub>.fm-small{display:none}
+.fm-in.sub>.fm-set{display:flex;animation:fmsub .36s cubic-bezier(.32,.72,0,1) both}
+@keyframes fmsub{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
+.fm-set h2{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:14px 0 2px}
+.fm-set>p{margin:0;color:var(--muted);font-size:14px}
+.fm-set .fm-small{margin-top:22px}
+.fm-small button em{display:block;font-style:normal;color:var(--muted);font-size:12.5px;margin-top:2px}
+.fm-back{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;color:var(--k-blue);font-size:15px;min-height:36px}
+.fm-back svg,.fm-small .chv{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.fm-small button span:last-child{display:inline-flex;align-items:center;gap:6px}
+@media (prefers-reduced-motion:reduce){.fm-in.sub>.fm-set{animation:none}}
 /* the light curtain canvas */
 .aur{position:fixed;inset:0;width:100vw;height:100%;z-index:35;pointer-events:none}
 /* manager avatars, same colors as the work board */
@@ -2217,15 +2231,19 @@ function accountDialog(){var m=emp(me()),pend=pendingCount(),off=D.office||{},co
     '<nav class="fm-big">'+tabOrder().map(function(k){return '<button type="button" data-go="'+k+'"'+(tab===k?' class="on"':"")+'>'+TL[k][0]+(k==="approve"&&pend?'<span class="cnt2">'+pend+"</span>":"")+"</button>"}).join("")+"</nav>"+
     '<div class="fm-small">'+
       (isStandalone()?"":'<div class="fm-note">להוספה למסך הבית: בספארי, כפתור השיתוף ואז "הוספה למסך הבית".</div>')+
-      (isMgr()?'<button type="button" id="aHere"><span>מיקום המשרד</span><span>'+(off.lat?"נקבע":"עוד לא נקבע")+'</span></button>'+'<button type="button" id="aNet"><span>וויי־פיי המשרד</span><span>'+((D.settings.office_nets||[]).length?"נשמר":"עוד לא נשמר")+'</span></button>'+
-        '<button type="button" id="aCodes"><span>קודי הצטרפות</span><span>'+(codes.length?codes.length+" ממתינים":"כולם נכנסו")+'</span></button>'+
-        '<button type="button" id="aReset"><span>איפוס היום שלי</span><span>לבדיקות</span></button>':"")+
+      (isMgr()?'<button type="button" id="aSet"><span>הגדרות משרד</span><span>'+(off.lat&&(D.settings.office_nets||[]).length&&!codes.length?"הכול נקבע":"")+'<svg class="chv" viewBox="0 0 10 10"><path d="M7 1L3 5l4 4"/></svg></span></button>':"")+
       '<button type="button" id="aPush"><span>התראות</span><span>'+pushState()+'</span></button>'+
       '<button type="button" id="aOut" class="r"><span>התנתקות</span><span>'+esc(m?m.name:"")+'</span></button>'+
-      '<div class="fm-ver">גרסה '+APP_VERSION+'</div></div></div>';
+      '<div class="fm-ver">גרסה '+APP_VERSION+'</div></div>'+
+    (isMgr()?'<div class="fm-set"><button type="button" class="fm-back" id="aBack"><svg viewBox="0 0 10 10"><path d="M3 1l4 4-4 4"/></svg>חזרה</button><h2>הגדרות משרד</h2><p>דברים שקובעים פעם אחת</p><div class="fm-small">'+
+      '<button type="button" id="aHere"><span>מיקום המשרד<em>'+esc(off.address||"השדרה האקדמית 2, קריית אונו")+'</em></span><span>'+(off.lat?"נקבע":"עוד לא נקבע")+'</span></button>'+
+      '<button type="button" id="aNet"><span>וויי־פיי המשרד<em>מזהה מי שמחתים מהמשרד בלי לבקש מיקום</em></span><span>'+((D.settings.office_nets||[]).length?"נשמר":"עוד לא נשמר")+'</span></button>'+
+      '<button type="button" id="aCodes"><span>קודי הצטרפות<em>לעובד חדש או למי ששכח קוד</em></span><span>'+(codes.length?codes.length+" ממתינים":"כולם נכנסו")+'</span></button>'+
+    '</div></div>':"")+'</div>';
   document.body.appendChild(el);requestAnimationFrame(function(){el.classList.add("show")});
   function close(){el.classList.remove("show");setTimeout(function(){el.remove()},320)}
   el.querySelector("#fmClose").onclick=close;
+  var fi=el.querySelector(".fm-in"),as=el.querySelector("#aSet");if(as){as.onclick=function(){fi.classList.add("sub")};el.querySelector("#aBack").onclick=function(){fi.classList.remove("sub")}}
   el.querySelectorAll("[data-go]").forEach(function(x){x.onclick=function(){var k=x.dataset.go;close();if(k===tab)return;var o=tabOrder(),a=o.indexOf(tab),c=o.indexOf(k);tab=k;render(c>a?"a-tl":"a-tr")}});
   el.querySelector("#aOut").onclick=async function(){close();await sb.auth.signOut();location.reload()};
   var ap=el.querySelector("#aPush");if(ap)ap.onclick=async function(){var s=ap.lastChild;if(!pushReady()){s.textContent=isStandalone()?"לא נתמך":"קודם הוספה למסך הבית";return}s.textContent="רגע…";var r=await pushSubscribe(true).catch(function(){return "error"});s.textContent=r==="on"?"פעילות":r==="denied"?"חסומות בהגדרות":r==="error"?"לא הצליח":"כבויות"};
@@ -2294,7 +2312,7 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=40;
+APP_VERSION=41;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}

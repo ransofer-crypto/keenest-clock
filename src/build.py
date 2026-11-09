@@ -208,6 +208,20 @@ header.top{margin-top:14px}
 .fixl{all:unset;cursor:pointer;display:block;margin-top:4px;min-height:24px;line-height:24px;font-size:12.5px;font-weight:500;color:var(--ink3);opacity:.8;text-align:center}
 .fixl.wait{cursor:default;color:var(--k-blue);opacity:1}
 [data-cell]{cursor:pointer}
+/* office settings: a quiet sub-view inside the full-screen menu */
+.fm-in>.fm-big,.fm-in>.fm-small,.fm-set{transition:opacity .32s cubic-bezier(.32,.72,0,1),transform .32s cubic-bezier(.32,.72,0,1)}
+.fm-set{display:none;flex-direction:column;flex:1;margin-top:3vh}
+.fm-in.sub>.fm-big,.fm-in.sub>.fm-small{display:none}
+.fm-in.sub>.fm-set{display:flex;animation:fmsub .36s cubic-bezier(.32,.72,0,1) both}
+@keyframes fmsub{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
+.fm-set h2{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:14px 0 2px}
+.fm-set>p{margin:0;color:var(--muted);font-size:14px}
+.fm-set .fm-small{margin-top:22px}
+.fm-small button em{display:block;font-style:normal;color:var(--muted);font-size:12.5px;margin-top:2px}
+.fm-back{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;color:var(--k-blue);font-size:15px;min-height:36px}
+.fm-back svg,.fm-small .chv{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.fm-small button span:last-child{display:inline-flex;align-items:center;gap:6px}
+@media (prefers-reduced-motion:reduce){.fm-in.sub>.fm-set{animation:none}}
 /* the light curtain canvas */
 .aur{position:fixed;inset:0;width:100vw;height:100%;z-index:35;pointer-events:none}
 /* manager avatars, same colors as the work board */
