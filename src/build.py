@@ -222,6 +222,8 @@ header.top{margin-top:14px}
 .fm-back svg,.fm-small .chv{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .fm-small button span:last-child{display:inline-flex;align-items:center;gap:6px}
 @media (prefers-reduced-motion:reduce){.fm-in.sub>.fm-set{animation:none}}
+/* popups and toasts sit above the full-screen menu (z 40) */
+#layer .scrim{z-index:45}.pop{z-index:46}.toast{z-index:50}
 /* the light curtain canvas */
 .aur{position:fixed;inset:0;width:100vw;height:100%;z-index:35;pointer-events:none}
 /* manager avatars, same colors as the work board */
