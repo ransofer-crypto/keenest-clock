@@ -230,6 +230,46 @@ header.top{margin-top:14px}
 .av.r{background:linear-gradient(135deg,#A57BFF,#6C3BEA);color:#fff}
 .av.z{background:linear-gradient(135deg,#4CC98A,#1F8A55);color:#fff}
 .pop .warn{color:var(--k-pink);font-size:13.5px;min-height:1em;margin:4px 2px 0}
+/* v43 design QA: one right edge for titles, lists, dot headings and numbers */
+.list{margin-inline:-4px}
+.list .empty{text-align:right;padding:12px 4px;margin:0}
+.hd{margin:18px 0 6px}
+.bal{padding:0}
+.rq-card{padding:18px 0}
+.ap-row{padding:12px 0}
+.rp-p{padding:12px 0}
+.rp-key{padding:10px 0 0}
+.rp-note{margin:4px 0 0}
+.drow{padding:8px 0}
+.fm-small button{padding:14px 0}
+.fm-note{padding:0 0 14px}
+.fm-set .fm-small{margin-top:22px;padding-top:0}
+/* approval card: the person dot sits on the name line */
+.rq-who{align-items:flex-start}
+.rq-who b{line-height:22px}
+.rq-who .pd{margin-top:6.5px}
+/* team board: arrows level with the title, unbroken row lines, outside-office dot clear of the time */
+.tw-h{align-items:flex-start}
+.tw-h h1{line-height:36px}
+.wgrid{column-gap:0}
+.wgrid .c .od{top:3px;left:3px}
+/* menu button: the pending dot clear of the icon */
+.rb.menu .mdot{top:6px;left:7px}
+/* dialogs: small headings get the dot, labels stay on one line, an empty error line takes no room */
+.pop .lbl2{display:flex;align-items:center;gap:8px;margin:4px 0 -4px}
+.pop .lbl2::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--k-blue);flex:none}
+.fld label{width:auto;min-width:92px;white-space:nowrap}
+.pop .warn:empty{display:none}
+textarea.note{overflow:hidden}
+/* Hebrew placeholders in the left-aligned number fields read right to left */
+.fld input:placeholder-shown{direction:rtl;text-align:left}
+/* a wrapping subtitle keeps the X level with the title */
+.kd-hd.kd-tall{align-items:flex-start}
+.kd-hd.kd-tall .kd-x{margin-top:-6.4px}
+/* today: the toast sits above the slider */
+body:has(#view .mock) .toast{bottom:calc(106px + env(safe-area-inset-bottom,0px))}
+/* special-day drawings stay clear of the slider: the canvas fades out softly towards the slider (clear in the bottom 140px, faint at 180px) */
+#cv{-webkit-mask-image:linear-gradient(to top,transparent calc(140px + env(safe-area-inset-bottom,0px)),rgb(0 0 0 / .15) calc(180px + env(safe-area-inset-bottom,0px)),rgb(0 0 0 / .5) calc(225px + env(safe-area-inset-bottom,0px)),rgb(0 0 0 / .85) calc(270px + env(safe-area-inset-bottom,0px)),#000 calc(305px + env(safe-area-inset-bottom,0px)));mask-image:linear-gradient(to top,transparent calc(140px + env(safe-area-inset-bottom,0px)),rgb(0 0 0 / .15) calc(180px + env(safe-area-inset-bottom,0px)),rgb(0 0 0 / .5) calc(225px + env(safe-area-inset-bottom,0px)),rgb(0 0 0 / .85) calc(270px + env(safe-area-inset-bottom,0px)),#000 calc(305px + env(safe-area-inset-bottom,0px)))}
 '''
 pwa='''<!doctype html>
 <html lang="he" dir="rtl">

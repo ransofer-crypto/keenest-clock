@@ -146,7 +146,7 @@ function afterToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);
   if(open&&!forgotAsked[open.date]&&!D.reqs.some(function(r){return r.type==="fix"&&r.emp===e.id&&r.date===open.date&&r.status==="pending"})){forgotAsked[open.date]=1;setTimeout(function(){forgotOut(open)},700)}}
 function viewToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g),look=todayLook(),vacToday=onVac(e.id,g,"ok");
   var st=!p?"before":p.out?"done":"in";
-  var tHtml=st==="before"?'<span class="t wait2">'+(vacToday?"היום אתה בחופשה":"עוד לא נכנסת")+"</span>":st==="in"?'<span class="t'+(window.__rise?" rise":"")+'">'+p.in+"</span>":'<span class="t pair'+(window.__rise?" rise":"")+'">'+p.in+'<span class="dash"> – </span>'+p.out+"</span>";
+  var tHtml=st==="before"?'<span class="t wait2">'+(vacToday?(D.reqs.some(function(r){return r.emp===e.id&&r.type==="sick"&&r.from<=g&&r.to>=g})?"היום אתה בחופשת מחלה":"היום אתה בחופשה"):"עוד לא נכנסת")+"</span>":st==="in"?'<span class="t'+(window.__rise?" rise":"")+'">'+p.in+"</span>":'<span class="t pair'+(window.__rise?" rise":"")+'">'+p.in+'<span class="dash"> – </span>'+p.out+"</span>";
   var note=(p&&p.note)||D.dayNote||"";
   var flag=p&&p.inLoc==="out"&&!note?'<span class="locflag">נכנסת מחוץ למשרד</span>':"";
   var sad=look.fx&&look.fx[0]==="נר תשעה באב",hi=sad?e.name:partOfDay()+", "+e.name;
@@ -156,7 +156,7 @@ function viewToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g),look=to
     '<span class="l">יום '+HEB_DAYS[new Date().getDay()]+", "+nice(g)+"</span>"+tHtml+'<button type="button" class="where'+(note?" on":"")+'" id="whereBtn"><svg><use href="#i-pin"/></svg><span>'+(note?esc(note):"מחוץ למשרד היום?")+"</span></button>"+flag+lateLink(st,e,g)+
     '<span class="sp"></span><div class="slide'+(st==="in"?" exit":"")+(st==="done"?" done":"")+'" id="slide"><span class="knob" id="knob"><svg><use href="#i-arrow"/></svg></span><span class="lbl" id="slbl">'+(st==="before"?"החלק לכניסה":st==="in"?"החלק ליציאה":"יום טוב, נתראה מחר")+"</span></div></section>"}
 function whereDialog(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);var cur=(p&&p.note)||D.dayNote||"";
-  var b=pop('<h3>מחוץ למשרד היום?</h3><p class="sub">אפשר לכתוב איפה אתה, למשל צילומים</p><div class="chips">'+["צילומים","פגישה אצל לקוח","עבודה מהבית"].map(function(c){return '<button type="button">'+c+"</button>"}).join("")+'</div><textarea class="note" id="wn" placeholder="צילומים בנמל תל אביב">'+esc(cur)+'</textarea><div class="btns"><button class="bp" id="wOk">שמירה</button>'+(cur?'<button class="bred" id="wDel">בעצם אני במשרד</button>':"")+'<button class="bs">ביטול</button></div>');
+  var b=pop('<h3>מחוץ למשרד היום?</h3><div class="chips">'+["צילומים","פגישה אצל לקוח","עבודה מהבית"].map(function(c){return '<button type="button">'+c+"</button>"}).join("")+'</div><textarea class="note" id="wn" placeholder="איפה?">'+esc(cur)+'</textarea><div class="btns"><button class="bp" id="wOk">שמירה</button>'+(cur?'<button class="bred" id="wDel">בעצם אני במשרד</button>':"")+'<button class="bs">ביטול</button></div>');
   b.querySelectorAll(".chips button").forEach(function(c){c.onclick=function(){var ta=b.querySelector("#wn");ta.value=c.textContent+" ";ta.focus()}});
   b.querySelector(".bs").onclick=closePop;
   async function set(v){closePop();try{await rpc("set_day_note",{n:v});D.dayNote=v;await refresh()}catch(e){toast(errMsg(e))}}
@@ -176,7 +176,7 @@ function wdTxt(n){return +n===1?"יום עבודה אחד":n+" ימי עבודה
 /* ---------- requests ---------- */
 /* manager: set anyone's times for a day directly, no approval needed */
 function editDay(id,g){var e=emp(id),p=punchOf(id,g);if(!e)return;
-  var b=pop('<h3>'+esc(e.name)+'</h3><p class="sub">'+HEB_DAYS[parse(g).getDay()]+", "+nice(g)+'</p><div class="form"><div class="fld"><label for="ei">כניסה</label><input id="ei" type="time" value="'+(p?p.in:"09:00")+'"></div><div class="fld"><label for="eo">יציאה</label><input id="eo" type="time" value="'+(p&&p.out?p.out:"")+'"></div></div><p class="sub">אפשר להשאיר יציאה ריקה אם עוד לא יצא</p><div class="btns"><button class="bp" id="eOk">שמירה</button><button class="bs">ביטול</button></div>'+(p?'<button type="button" class="fixl" id="eClr">ניקוי היום</button>':""));
+  var b=pop('<h3>'+esc(e.name)+'</h3><p class="sub">'+HEB_DAYS[parse(g).getDay()]+", "+nice(g)+'</p><div class="form"><div class="fld"><label for="ei">כניסה</label><input id="ei" type="time" value="'+(p?p.in:"09:00")+'"></div><div class="fld"><label for="eo">יציאה</label><input id="eo" type="time" value="'+(p&&p.out?p.out:"")+'"></div></div><div class="btns"><button class="bp" id="eOk">שמירה</button><button class="bs">ביטול</button></div>'+(p?'<button type="button" class="fixl" id="eClr">ניקוי היום</button>':""));
   b.querySelector(".bs").onclick=closePop;
   async function send(a,c){closePop();try{await rpc("mgr_set_punch",{p_emp:id,p_day:g,p_in:a||null,p_out:c||null});await refresh()}catch(x){toast(errMsg(x))}}
   b.querySelector("#eOk").onclick=function(){var a=b.querySelector("#ei").value,c=b.querySelector("#eo").value;if(!a)return;if(c&&c<=a){b.querySelector("#eo").focus();return}send(a,c)};
@@ -191,12 +191,12 @@ function lateLink(st,e,g){
   if(w)return '<span class="fixl wait">תיקון ל־'+(w.inT||"")+(w.outT?" – "+w.outT:"")+" מחכה לאישור</span>";
   return '<button type="button" class="fixl" id="lateBtn">החתמת באיחור? בקשה לתיקון</button>'}
 function lateDialog(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);if(!p)return;if(p.out){fixDialog(e.id,g);return}
-  var b=pop('<h3>מתי נכנסת?</h3><p class="sub">החתמת ב־'+p.in+'. השעה שתכתוב תישלח לאישור</p><div class="form"><div class="fld"><label for="li">שעת כניסה</label><input id="li" type="time" value="09:00"></div></div><textarea class="note" id="lr" placeholder="למשל שכחתי להחתים כשהגעתי"></textarea><div class="btns"><button class="bp" id="lOk">שליחה לאישור</button><button class="bs">ביטול</button></div>');
+  var b=pop('<h3>מתי נכנסת?</h3><p class="sub">החתמת ב־'+p.in+'</p><div class="form"><div class="fld"><label for="li">שעת כניסה</label><input id="li" type="time" value="09:00"></div></div><textarea class="note" id="lr" placeholder="מה קרה?"></textarea><div class="btns"><button class="bp" id="lOk">שליחה לאישור</button><button class="bs">ביטול</button></div>');
   b.querySelector(".bs").onclick=closePop;
   b.querySelector("#lOk").onclick=async function(){var t=b.querySelector("#li").value;if(!t)return;var n=b.querySelector("#lr").value.trim()||"שכחתי להחתים בזמן";closePop();
     var tmp={id:"tmp-fix",emp:e.id,type:"fix",status:"pending",date:g,inT:t,outT:"",oldIn:p.in,oldOut:"",note:n,created:g};D.reqs.push(tmp);patchToday();
     try{await rpc("request_fix",{p_day:g,p_in:t,p_out:null,n:n});await refresh()}catch(x){D.reqs=D.reqs.filter(function(r){return r!==tmp});patchToday();toast(errMsg(x))}}}
-function fixDialog(id,g){var p=punchOf(id,g);if(g>iso(new Date()))return;var b=pop('<h3>תיקון שעות</h3><p class="sub">'+HEB_DAYS[parse(g).getDay()]+", "+nice(g)+'</p><div class="form"><div class="fld"><label for="fi">כניסה</label><input id="fi" type="time" value="'+(p?p.in:"09:00")+'"></div><div class="fld"><label for="fo2">יציאה</label><input id="fo2" type="time" value="'+(p&&p.out?p.out:"18:00")+'"></div></div><textarea class="note" id="fr" placeholder="מה קרה? למשל שכחתי להחתים"></textarea><div class="btns"><button class="bp" id="fOk">שליחה לאישור</button><button class="bs">ביטול</button></div>');
+function fixDialog(id,g){var p=punchOf(id,g);if(g>iso(new Date()))return;var b=pop('<h3>תיקון שעות</h3><p class="sub">'+HEB_DAYS[parse(g).getDay()]+", "+nice(g)+'</p><div class="form"><div class="fld"><label for="fi">כניסה</label><input id="fi" type="time" value="'+(p?p.in:"09:00")+'"></div><div class="fld"><label for="fo2">יציאה</label><input id="fo2" type="time" value="'+(p&&p.out?p.out:"18:00")+'"></div></div><textarea class="note" id="fr" placeholder="מה קרה?"></textarea><div class="btns"><button class="bp" id="fOk">שליחה לאישור</button><button class="bs">ביטול</button></div>');
   b.querySelector(".bs").onclick=closePop;b.querySelector("#fOk").onclick=async function(){var a=b.querySelector("#fi").value,c=b.querySelector("#fo2").value;if(!a||!c)return;var n=b.querySelector("#fr").value.trim();closePop();
     try{await rpc("request_fix",{p_day:g,p_in:a,p_out:c,n:n});await refresh();toast("התיקון נשלח לאישור")}catch(e){toast(errMsg(e))}}}
 function vacDialog(){var t0=addDays(new Date(),14);while(!isWork(t0))t0=addDays(t0,1);
@@ -211,8 +211,8 @@ function sickDialog(){var g=iso(new Date());var b=pop('<h3>דיווח מחלה</
     try{await rpc("report_sick",{a:f,b:t});await refresh();toast("הדיווח נשלח. רפואה שלמה")}catch(e){toast(errMsg(e))}}}
 
 /* ---------- manager ---------- */
-function empDialog(id){var e=emp(id);var b=pop('<h3>'+e.name+'</h3><p class="sub">פרטים שמשפיעים על הימים המיוחדים ועל החופשות</p><div class="form"><div class="fld"><label for="es">תחילת עבודה</label><input id="es" type="date" value="'+(e.start||"")+'"></div><div class="fld"><label for="eb">יום הולדת</label><input id="eb" type="date" value="'+(e.birthday||"")+'"></div><div class="fld"><label for="ev">ימי חופשה בשנה</label><input id="ev" type="number" min="0" max="40" value="'+e.vac+'"></div></div>'+
-  '<p class="lbl2">כניסה לאתר</p><p class="sub" id="codeLine">'+(e.code?'קוד הצטרפות: <b class="ltr" style="font-size:18px;letter-spacing:.12em">'+e.code+"</b>":"כבר מחובר. אם שכח את הקוד האישי, צור קוד הצטרפות חדש.")+'</p><button class="btn ghost" type="button" id="eCode" style="width:100%">קוד הצטרפות חדש</button>'+
+function empDialog(id){var e=emp(id);var b=pop('<h3>'+e.name+'</h3><div class="form"><div class="fld"><label for="es">תחילת עבודה</label><input id="es" type="date" value="'+(e.start||"")+'"></div><div class="fld"><label for="eb">יום הולדת</label><input id="eb" type="date" value="'+(e.birthday||"")+'"></div><div class="fld"><label for="ev">ימי חופשה בשנה</label><input id="ev" type="number" min="0" max="40" value="'+e.vac+'"></div></div>'+
+  '<p class="lbl2">כניסה לאתר</p><p class="sub" id="codeLine">'+(e.code?'קוד הצטרפות: <b class="ltr" style="font-size:18px;letter-spacing:.12em">'+e.code+"</b>":"כבר מחובר")+'</p><button class="btn ghost" type="button" id="eCode" style="width:100%">קוד הצטרפות חדש</button>'+
   '<div class="btns"><button class="bp" id="eOk">שמירה</button><button class="bs">ביטול</button></div>');
   b.querySelector(".bs").onclick=closePop;
   b.querySelector("#eCode").onclick=async function(){try{var c=await rpc("new_invite",{eid:id});e.code=c;b.querySelector("#codeLine").innerHTML='קוד הצטרפות: <b class="ltr" style="font-size:18px;letter-spacing:.12em">'+c+"</b>"}catch(x){toast(errMsg(x))}};
@@ -348,8 +348,8 @@ function accountDialog(){var m=emp(me()),pend=pendingCount(),off=D.office||{},co
   el.querySelector("#aOut").onclick=async function(){close();await sb.auth.signOut();location.reload()};
   var ap=el.querySelector("#aPush");if(ap)ap.onclick=async function(){var s=ap.lastChild;if(!pushReady()){s.textContent=isStandalone()?"לא נתמך":"קודם הוספה למסך הבית";return}s.textContent="רגע…";var r=await pushSubscribe(true).catch(function(){return "error"});s.textContent=r==="on"?"פעילות":r==="denied"?"חסומות בהגדרות":r==="error"?"לא הצליח":"כבויות"};
   var rs=el.querySelector("#aReset");if(rs)rs.onclick=async function(){close();try{await rpc("reset_my_day");D.dayNote="";FX.stop();tab="today";await refresh();toast("היום שלך אופס. אפשר להיכנס שוב")}catch(e){toast(errMsg(e))}};
-  var cd=el.querySelector("#aCodes");if(cd)cd.onclick=function(){var b=pop('<h3>קודי הצטרפות</h3><p class="sub">כל אחד לוחץ על השם שלו בשעון ומקליד את הקוד. אחרי שנכנס, הקוד נמחק.</p>'+(codes.length?codes.map(function(e){return '<div class="drow"><span>'+e.name+'</span><span class="nn"></span><span class="tt ltr" style="letter-spacing:.12em;font-size:17px">'+e.code+"</span></div>"}).join(""):'<p class="sub">כולם כבר נכנסו.</p>')+'<div class="btns"><button class="bs">סגירה</button></div>');b.querySelector(".bs").onclick=closePop};
-  var an=el.querySelector("#aNet");if(an)an.onclick=function(){var b=pop('<h3>וויי־פיי המשרד</h3><p class="sub">כשמישהו מחתים מהוויי־פיי של המשרד, השעון יודע שהוא במשרד בלי לבקש מיקום. צריך להיות מחובר עכשיו לוויי־פיי של המשרד.</p><div class="btns"><button class="bp" id="nOk">אני על הוויי־פיי של המשרד, שמור</button><button class="bs">ביטול</button></div>');
+  var cd=el.querySelector("#aCodes");if(cd)cd.onclick=function(){var b=pop('<h3>קודי הצטרפות</h3>'+(codes.length?codes.map(function(e){return '<div class="drow"><span>'+e.name+'</span><span class="nn"></span><span class="tt ltr" style="letter-spacing:.12em;font-size:17px">'+e.code+"</span></div>"}).join(""):'<p class="sub">כולם כבר נכנסו.</p>')+'<div class="btns"><button class="bs">סגירה</button></div>');b.querySelector(".bs").onclick=closePop};
+  var an=el.querySelector("#aNet");if(an)an.onclick=function(){var b=pop('<h3>וויי־פיי המשרד</h3><div class="btns"><button class="bp" id="nOk">אני על הוויי־פיי של המשרד, שמור</button><button class="bs">ביטול</button></div>');
     b.querySelector(".bs").onclick=closePop;b.querySelector("#nOk").onclick=async function(){closePop();try{await rpc("save_office_net");await refresh();an.lastChild.textContent="נשמר";toast("הרשת של המשרד נשמרה")}catch(e){toast(errMsg(e))}}};
   var h=el.querySelector("#aHere");if(h)h.onclick=async function(){var s=h.lastChild;s.textContent="רגע…";var p=await getPos();if(!p){s.textContent="אין גישה למיקום";return}
     D.office=Object.assign({},D.office,{lat:p.lat,lng:p.lng});var r=await sb.from("settings").update({value:D.office}).eq("key","office");s.textContent=r.error?"לא נשמר":"נקבע מכאן";toast(r.error?errMsg(r.error):"מיקום המשרד נשמר")}}
@@ -370,19 +370,19 @@ function viewTeam(){var s=addDays(sundayOf(new Date()),weekOff*7),today=iso(new 
     (weekOff===0?'<p class="tw-now"><b>'+inNow+'</b> מתוך '+D.emps.length+" בעבודה עכשיו</p>":"")+
     '<div class="wgrid" style="grid-template-columns:minmax(74px,auto) repeat('+days.length+',minmax(0,1fr))"><span></span>'+days.map(function(d){return '<span class="h'+(iso(d)===today?" t":"")+'">'+"אבגדהוש"[d.getDay()]+"׳ "+d.getDate()+"</span>"}).join("")+
     D.emps.map(function(e){return '<button type="button" class="wn" data-emp="'+e.id+'"><i class="pd '+e.cls+'"></i>'+esc(e.name)+"</button>"+days.map(function(d){var g=iso(d),c=cellOf(e,g);if(g===today)c=c.replace('class="c','class="c t');return g<=today?c.replace('<span class="c','<span data-cell="'+e.id+"|"+g+'" class="c'):c}).join("")}).join("")+
-    '</div><p class="tw-key"><i class="od"></i> מחוץ למשרד · לחיצה על משבצת מתקנת שעות</p></div>'}
+    '</div><p class="tw-key"><i class="od"></i> מחוץ למשרד</p></div>'}
 
 /* approvals: one card per request */
 function viewApprove(){var pend=D.reqs.filter(function(r){return r.status==="pending"}).sort(function(a,b){return a.created<b.created?-1:1}),done=D.reqs.filter(function(r){return r.status!=="pending"&&r.type!=="sick"}).slice(-5).reverse();
   function card(r){var e=emp(r.emp),title,small,kind;
     if(r.type==="fix"&&!r.outT){kind="תיקון שעת כניסה · "+HEB_DAYS[parse(r.date).getDay()]+", "+nice(r.date);title="נכנס ב־"+(r.inT||"");small=r.oldIn?"החתים ב־"+r.oldIn:""}
-    else if(r.type==="fix"){kind="תיקון שעות · "+HEB_DAYS[parse(r.date).getDay()]+", "+nice(r.date);title='<span class="ltr">'+(r.inT||"")+" – "+(r.outT||"")+"</span>";small=r.oldOut?"היה רשום "+(r.oldIn||"")+" – "+r.oldOut:(r.oldIn?"נכנס ב־"+r.oldIn+", בלי יציאה":"")}
+    else if(r.type==="fix"){kind="תיקון שעות · "+HEB_DAYS[parse(r.date).getDay()]+", "+nice(r.date);title='<span class="ltr">'+(r.inT||"")+" – "+(r.outT||"")+"</span>";small=r.oldOut?"היה רשום \u2066"+(r.oldIn||"")+" – "+r.oldOut+"\u2069":(r.oldIn?"נכנס ב־"+r.oldIn+", בלי יציאה":"")}
     else{kind="בקשת חופשה";title=r.from===r.to?nice(r.from):nice(r.from)+" עד "+nice(r.to);small=wdTxt(r.days)+" · נשארו "+(e.vac-vacUsed(e.id))}
     return '<article class="rq-card"><div class="rq-who"><i class="pd '+e.cls+'"></i><div><b>'+esc(e.name)+"</b><small>"+kind+"</small></div>"+(r.late?'<span class="badge wait">מאוחר</span>':"")+'</div>'+
       '<div class="rq-what">'+title+(small?"<small>"+esc(small)+"</small>":"")+(r.note?'<small class="q">"'+esc(r.note)+'"</small>':"")+'</div>'+
       '<div class="rq-btns"><button type="button" class="bs2" data-no="'+r.id+'">לא עכשיו</button><button type="button" class="bp2" data-ok="'+r.id+'">אישור</button></div></article>'}
   return '<div class="ap"><h1>לאישור</h1><span class="sub">'+(pend.length?(pend.length===1?"בקשה אחת מחכה":pend.length+" בקשות מחכות"):"הכול טופל")+"</span>"+
-    (pend.length?pend.map(card).join(""):'<p class="ap-empty">כשמישהו יבקש חופשה או תיקון שעות, זה יופיע כאן.</p>')+
+    (pend.length?pend.map(card).join(""):"")+
     (done.length?'<p class="hd">טופלו לאחרונה</p><div class="ap-done">'+done.map(function(r){var e=emp(r.emp);return '<div class="ap-row"><span>'+esc(e.name)+" · "+reqLabel(r)+"</span>"+statusBadge(r)+"</div>"}).join("")+"</div>":"")+"</div>"}
 
 document.addEventListener("click",function(e){if(e.target.closest("#wPrev")){weekOff--;render("a-tr")}else if(e.target.closest("#wNext")&&weekOff<0){weekOff++;render("a-tl")}});
@@ -407,12 +407,12 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
     rows.map(function(r){var w=pct(r.mn,r.tgt),o=Math.min(100-w,pct(r.off,r.tgt)),mk=cur?pct(r.now,r.tgt):0;
       return '<div class="rp-p"><button type="button" class="rp-t" data-exp="'+r.e.id+'"><i class="pd '+r.e.cls+'"></i><b>'+esc(r.e.name)+'</b><span class="rp-s"><span><b>'+r.ps.length+'</b> ימים</span><span><b>'+r.vac+'</b> חופשה</span><span><b>'+r.sick+'</b> מחלה</span></span><span class="ltr rp-h">'+hhmm(r.mn)+'<i> / '+Math.round(r.tgt/60)+"</i></span></button>"+
         '<div class="rp-bar"><i style="width:'+w+'%"></i><i class="v" style="width:'+o+'%"></i>'+(cur&&mk<100?'<em style="right:'+mk+'%"></em>':"")+"</div>"+
-        '<div hidden id="x'+r.e.id+'">'+(r.ps.length?r.ps.map(function(p){return '<div class="drow"><span>'+HEB_DAYS[parse(p.date).getDay()].slice(0,1)+"׳ "+parse(p.date).getDate()+'</span><span class="nn">'+esc(p.note||(p.inLoc==="out"?"מחוץ למשרד":""))+'</span><span class="tt">'+p.in+"–"+p.out+" · "+dur(mins(p.out)-mins(p.in))+"</span></div>"}).join(""):'<p class="sub">אין ימים בחודש הזה</p>')+"</div></div>"}).join("")+
+        '<div hidden id="x'+r.e.id+'">'+(r.ps.length?r.ps.map(function(p){return '<div class="drow"><span>'+"אבגדהוש"[parse(p.date).getDay()]+"׳ "+parse(p.date).getDate()+'</span><span class="nn">'+esc(p.note||(p.inLoc==="out"?"מחוץ למשרד":""))+'</span><span class="tt">'+p.in+"–"+p.out+" · "+dur(mins(p.out)-mins(p.in))+"</span></div>"}).join(""):'<p class="sub">אין ימים בחודש הזה</p>')+"</div></div>"}).join("")+
     '<div class="rp-key"><span><i></i>שעות</span><span><i class="v"></i>חופשה ומחלה</span>'+(cur?'<span><i class="m"></i>היעד</span>':"")+'</div><p class="rp-note">היעד מחושב לפי '+DAY_H+' שעות עבודה ביום</p>'+
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=42;
+APP_VERSION=43;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}

@@ -15,6 +15,9 @@
       const x=document.createElement("button");x.type="button";x.className="kd-x";x.setAttribute("aria-label","סגירה");x.innerHTML=X;
       x.onclick=()=>cancel?cancel.click():close();hd.append(t,x);
       if(cancel){cancel.hidden=true;if(bar&&![...bar.children].some(c=>!c.hidden&&!c.matches(".spacer")))bar.hidden=true}}
+    /* a subtitle that wraps keeps the X level with the title; note boxes grow to their text */
+    const sb=box.querySelector(".kd-t>.sub");if(sb&&sb.getClientRects().length&&sb.offsetHeight>parseFloat(getComputedStyle(sb).fontSize)*2)box.querySelector(".kd-hd").classList.add("kd-tall");
+    box.querySelectorAll("textarea.note").forEach(t=>{const fit=()=>{t.style.height="auto";t.style.height=Math.max(78,t.scrollHeight)+"px"};fit();t.addEventListener("input",fit)});
   }
   const wrapFn=(name,after)=>{const f=window[name];if(typeof f!=="function"||f.__kd)return;const w=function(){const r=f.apply(this,arguments);try{after(r)}catch(_){}return r};w.__kd=1;window[name]=w};
   wrapFn("openSheet",()=>{const sc=document.querySelector("#sheetHost .scrim");if(sc)polish(sc.querySelector(".sheet"),sc,()=>window.closeSheet())});
