@@ -141,20 +141,21 @@ var forgotAsked={};
 function afterToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);
   var keep=window.__fxOn&&window.__fxDay===g&&window.__fxWho===e.id;
   if(p){setVeil(p.out?"out":"in");if(!keep){playLook(todayLook());window.__fxOn=1;window.__fxDay=g;window.__fxWho=e.id}}else{FX.stop();window.__fxOn=0;setVeil("")}
-  $("#whereBtn").onclick=whereDialog;var lb=$("#lateBtn");if(lb)lb.onclick=lateDialog;var fb=$("#forgotBtn");if(fb)fb.onclick=function(){var q=D.punches.find(function(x){return x.emp===e.id&&x.date===fb.dataset.d});if(q)forgotOut(q)};bindSlide();
+  var wb=$("#whereBtn");if(wb)wb.onclick=whereDialog;
+  var vg=$("#vqGo");if(vg)vg.onclick=function(){var q=$("#vq"),sl=$("#slide");q.remove();sl.hidden=false;sl.animate([{opacity:0},{opacity:1}],{duration:450,easing:"cubic-bezier(.32,.72,0,1)"})};var lb=$("#lateBtn");if(lb)lb.onclick=lateDialog;var fb=$("#forgotBtn");if(fb)fb.onclick=function(){var q=D.punches.find(function(x){return x.emp===e.id&&x.date===fb.dataset.d});if(q)forgotOut(q)};bindSlide();
   var open=D.punches.find(function(q){return q.emp===e.id&&!q.out&&q.date<g});
   if(open&&!forgotAsked[open.date]&&!D.reqs.some(function(r){return r.type==="fix"&&r.emp===e.id&&r.date===open.date&&r.status==="pending"})){forgotAsked[open.date]=1;setTimeout(function(){forgotOut(open)},700)}}
 function viewToday(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g),look=todayLook(),vacToday=onVac(e.id,g,"ok");
-  var st=!p?"before":p.out?"done":"in";
-  var tHtml=st==="before"?'<span class="t wait2">'+(vacToday?(D.reqs.some(function(r){return r.emp===e.id&&r.type==="sick"&&r.from<=g&&r.to>=g})?"היום אתה בחופשת מחלה":"היום אתה בחופשה"):"עוד לא נכנסת")+"</span>":st==="in"?'<span class="t'+(window.__rise?" rise":"")+'">'+p.in+"</span>":'<span class="t pair'+(window.__rise?" rise":"")+'">'+p.in+'<span class="dash"> – </span>'+p.out+"</span>";
+  var st=!p?"before":p.out?"done":"in",off=st==="before"&&vacToday,sickToday=vacToday&&D.reqs.some(function(r){return r.emp===e.id&&r.type==="sick"&&r.from<=g&&r.to>=g});
+  var tHtml=st==="before"?'<span class="t wait2">'+(vacToday?(sickToday?"היום אתה בחופשת מחלה":"היום אתה בחופשה"):"עוד לא נכנסת")+"</span>":st==="in"?'<span class="t'+(window.__rise?" rise":"")+'">'+p.in+"</span>":'<span class="t pair'+(window.__rise?" rise":"")+'">'+p.in+'<span class="dash"> – </span>'+p.out+"</span>";
   var note=(p&&p.note)||D.dayNote||"";
   var flag=p&&p.inLoc==="out"&&!note?'<span class="locflag">נכנסת מחוץ למשרד</span>':"";
   var sad=look.fx&&look.fx[0]==="נר תשעה באב",hi=sad?e.name:partOfDay()+", "+e.name;
   var rise=window.__rise?" rise":"";
   if(window.__rise)tHtml=tHtml.replace(/>([0-9:]{4,5})</g,function(m,t){return ">"+t.split("").map(function(ch,i){return '<span class="dg" style="--i:'+i+'">'+ch+"</span>"}).join("")+"<"}).replace(/>([0-9:]{4,5})(<span class="dash">)/,function(m,t,rest){return ">"+t.split("").map(function(ch,i){return '<span class="dg" style="--i:'+i+'">'+ch+"</span>"}).join("")+rest});
   return '<section class="mock'+(window.__rise?" enter":"")+'"><span class="hi">'+esc(hi)+'</span><p class="q'+(st==="before"?" hide":(window.__rise&&st==="in"||!window.__rise&&!window.__fxOn?" rise":""))+'">'+esc(look.q)+'</p><span class="sp big"></span>'+
-    '<span class="l">יום '+HEB_DAYS[new Date().getDay()]+", "+nice(g)+"</span>"+tHtml+'<button type="button" class="where'+(note?" on":"")+'" id="whereBtn"><svg><use href="#i-pin"/></svg><span>'+(note?esc(note):"מחוץ למשרד היום?")+"</span></button>"+flag+lateLink(st,e,g)+
-    '<span class="sp"></span><div class="slide'+(st==="in"?" exit":"")+(st==="done"?" done":"")+'" id="slide"><span class="knob" id="knob"><svg><use href="#i-arrow"/></svg></span><span class="lbl" id="slbl">'+(st==="before"?"החלק לכניסה":st==="in"?"החלק ליציאה":"יום טוב, נתראה מחר")+"</span></div></section>"}
+    '<span class="l">יום '+HEB_DAYS[new Date().getDay()]+", "+nice(g)+"</span>"+tHtml+(off?"":'<button type="button" class="where'+(note?" on":"")+'" id="whereBtn"><svg><use href="#i-pin"/></svg><span>'+(note?esc(note):"מחוץ למשרד היום?")+"</span></button>")+flag+lateLink(st,e,g)+
+    '<span class="sp"></span>'+(off?'<div class="vq" id="vq"><span>'+(sickToday?"רפואה שלמה":"יום חופש נעים")+'</span><button type="button" id="vqGo">בכל זאת נכנסתי</button></div>':"")+'<div'+(off?" hidden":"")+' class="slide'+(st==="in"?" exit":"")+(st==="done"?" done":"")+'" id="slide"><span class="knob" id="knob"><svg><use href="#i-arrow"/></svg></span><span class="lbl" id="slbl">'+(st==="before"?"החלק לכניסה":st==="in"?"החלק ליציאה":"יום טוב, נתראה מחר")+"</span></div></section>"}
 function whereDialog(){var e=emp(me()),g=iso(new Date()),p=punchOf(e.id,g);var cur=(p&&p.note)||D.dayNote||"";
   var b=pop('<h3>מחוץ למשרד היום?</h3><div class="chips">'+["צילומים","פגישה אצל לקוח","עבודה מהבית"].map(function(c){return '<button type="button">'+c+"</button>"}).join("")+'</div><textarea class="note" id="wn" placeholder="איפה?">'+esc(cur)+'</textarea><div class="btns"><button class="bp" id="wOk">שמירה</button>'+(cur?'<button class="bred" id="wDel">בעצם אני במשרד</button>':"")+'<button class="bs">ביטול</button></div>');
   b.querySelectorAll(".chips button").forEach(function(c){c.onclick=function(){var ta=b.querySelector("#wn");ta.value=c.textContent+" ";ta.focus()}});
@@ -303,7 +304,7 @@ async function start(){var s=await sb.auth.getSession();if(!s.data.session){logi
   await loadWeather();tab="today";started=true;render("a-load");geocodeOffice();if(pushReady()&&Notification.permission==="granted")pushSubscribe(false).catch(function(){});else askPushOnce()}
 document.addEventListener("click",function(e){var t=e.target.closest("[data-tab]");if(t){var order=tabOrder(),a=order.indexOf(tab),b=order.indexOf(t.dataset.tab);if(t.dataset.tab===tab)return;tab=t.dataset.tab;render(b>a?"a-tl":"a-tr");return}
   var ok=e.target.closest("[data-ok]");if(ok){decide(ok.dataset.ok,true);return}var no=e.target.closest("[data-no]");if(no){decide(no.dataset.no,false);return}
-  var ex=e.target.closest("[data-exp]");if(ex){var box=$("#x"+ex.dataset.exp);box.hidden=!box.hidden;if(ex.classList.contains("exp"))ex.textContent=box.hidden?"פירוט לפי ימים":"הסתרת הפירוט";return}
+  var ex=e.target.closest("[data-exp]");if(ex){var box=$("#x"+ex.dataset.exp);box.hidden=!box.hidden;ex.classList.toggle("open",!box.hidden);ex.setAttribute("aria-expanded",String(!box.hidden));if(ex.classList.contains("exp"))ex.textContent=box.hidden?"פירוט לפי ימים":"הסתרת הפירוט";return}
   if(e.target.closest("#mPrev")){repMonth[1]--;if(repMonth[1]<0){repMonth[1]=11;repMonth[0]--}render("a-tr");return}
   if(e.target.closest("#mNext")){repMonth[1]++;if(repMonth[1]>11){repMonth[1]=0;repMonth[0]++}render("a-tl");return}
   if(e.target.closest("#xls")){exportCsv();return}
@@ -330,15 +331,14 @@ function accountDialog(){var m=emp(me()),pend=pendingCount(),off=D.office||{},co
   el.innerHTML='<div class="fm-in"><div class="fm-top"><button class="rb" type="button" id="fmClose" aria-label="סגירה"><svg><use href="#i-x"/></svg></button><img class="hlogo" src="'+$(".hlogo").src+'" alt="Keenest"><span style="width:44px"></span></div>'+
     '<nav class="fm-big">'+tabOrder().map(function(k){return '<button type="button" data-go="'+k+'"'+(tab===k?' class="on"':"")+'>'+TL[k][0]+(k==="approve"&&pend?'<span class="cnt2">'+pend+"</span>":"")+"</button>"}).join("")+"</nav>"+
     '<div class="fm-small">'+
-      (isStandalone()?"":'<div class="fm-note">להוספה למסך הבית: בספארי, כפתור השיתוף ואז "הוספה למסך הבית".</div>')+
       (isMgr()?'<button type="button" id="aSet"><span>הגדרות משרד</span><span>'+(off.lat&&(D.settings.office_nets||[]).length&&!codes.length?"הכול נקבע":"")+'<svg class="chv" viewBox="0 0 10 10"><path d="M7 1L3 5l4 4"/></svg></span></button>':"")+
       '<button type="button" id="aPush"><span>התראות</span><span>'+pushState()+'</span></button>'+
       '<button type="button" id="aOut" class="r"><span>התנתקות</span><span>'+esc(m?m.name:"")+'</span></button>'+
       '<div class="fm-ver">גרסה '+APP_VERSION+'</div></div>'+
-    (isMgr()?'<div class="fm-set"><button type="button" class="fm-back" id="aBack"><svg viewBox="0 0 10 10"><path d="M3 1l4 4-4 4"/></svg>חזרה</button><h2>הגדרות משרד</h2><p>דברים שקובעים פעם אחת</p><div class="fm-small">'+
+    (isMgr()?'<div class="fm-set"><button type="button" class="fm-back" id="aBack"><svg viewBox="0 0 10 10"><path d="M3 1l4 4-4 4"/></svg>חזרה</button><h2>הגדרות משרד</h2><div class="fm-small">'+
       '<button type="button" id="aHere"><span>מיקום המשרד<em>'+esc(off.address||"השדרה האקדמית 2, קריית אונו")+'</em></span><span>'+(off.lat?"נקבע":"עוד לא נקבע")+'</span></button>'+
-      '<button type="button" id="aNet"><span>וויי־פיי המשרד<em>מזהה מי שמחתים מהמשרד בלי לבקש מיקום</em></span><span>'+((D.settings.office_nets||[]).length?"נשמר":"עוד לא נשמר")+'</span></button>'+
-      '<button type="button" id="aCodes"><span>קודי הצטרפות<em>לעובד חדש או למי ששכח קוד</em></span><span>'+(codes.length?codes.length+" ממתינים":"כולם נכנסו")+'</span></button>'+
+      '<button type="button" id="aNet"><span>וויי־פיי המשרד</span><span>'+((D.settings.office_nets||[]).length?"נשמר":"עוד לא נשמר")+'</span></button>'+
+      '<button type="button" id="aCodes"><span>קודי הצטרפות</span><span>'+(codes.length?(codes.length===1?"ממתין אחד":codes.length+" ממתינים"):"כולם נכנסו")+'</span></button>'+
     '</div></div>':"")+'</div>';
   document.body.appendChild(el);requestAnimationFrame(function(){el.classList.add("show")});
   function close(){el.classList.remove("show");setTimeout(function(){el.remove()},320)}
@@ -405,14 +405,14 @@ function viewReport(){var now=new Date();if(!repMonth)repMonth=[now.getFullYear(
   function pct(v,t){return t?Math.min(100,v/t*100):0}
   return '<div class="rp"><div class="rp-m"><button type="button" id="mPrev" aria-label="החודש הקודם"><svg><use href="#i-prev"/></svg></button><div class="rp-mt"><b>'+HEB_MONTHS[m]+" "+y+'</b><span>'+hhmm(tot)+' שעות '+(cur?"עד היום":"בחודש")+'</span></div><button type="button" id="mNext" aria-label="החודש הבא"><svg><use href="#i-next"/></svg></button></div>'+
     rows.map(function(r){var w=pct(r.mn,r.tgt),o=Math.min(100-w,pct(r.off,r.tgt)),mk=cur?pct(r.now,r.tgt):0;
-      return '<div class="rp-p"><button type="button" class="rp-t" data-exp="'+r.e.id+'"><i class="pd '+r.e.cls+'"></i><b>'+esc(r.e.name)+'</b><span class="rp-s"><span><b>'+r.ps.length+'</b> ימים</span><span><b>'+r.vac+'</b> חופשה</span><span><b>'+r.sick+'</b> מחלה</span></span><span class="ltr rp-h">'+hhmm(r.mn)+'<i> / '+Math.round(r.tgt/60)+"</i></span></button>"+
+      return '<div class="rp-p"><button type="button" class="rp-t" data-exp="'+r.e.id+'"><i class="pd '+r.e.cls+'"></i><b>'+esc(r.e.name)+'</b><span class="rp-s"><span><b>'+r.ps.length+'</b> ימים</span><span><b>'+r.vac+'</b> חופשה</span><span><b>'+r.sick+'</b> מחלה</span></span><span class="ltr rp-h">'+hhmm(r.mn)+'<i> / '+Math.round(r.tgt/60)+'</i></span><svg class="rp-chv" viewBox="0 0 10 10" aria-hidden="true"><path d="M7 1L3 5l4 4"/></svg></button>'+
         '<div class="rp-bar"><i style="width:'+w+'%"></i><i class="v" style="width:'+o+'%"></i>'+(cur&&mk<100?'<em style="right:'+mk+'%"></em>':"")+"</div>"+
-        '<div hidden id="x'+r.e.id+'">'+(r.ps.length?r.ps.map(function(p){return '<div class="drow"><span>'+"אבגדהוש"[parse(p.date).getDay()]+"׳ "+parse(p.date).getDate()+'</span><span class="nn">'+esc(p.note||(p.inLoc==="out"?"מחוץ למשרד":""))+'</span><span class="tt">'+p.in+"–"+p.out+" · "+dur(mins(p.out)-mins(p.in))+"</span></div>"}).join(""):'<p class="sub">אין ימים בחודש הזה</p>')+"</div></div>"}).join("")+
-    '<div class="rp-key"><span><i></i>שעות</span><span><i class="v"></i>חופשה ומחלה</span>'+(cur?'<span><i class="m"></i>היעד</span>':"")+'</div><p class="rp-note">היעד מחושב לפי '+DAY_H+' שעות עבודה ביום</p>'+
+        '<div hidden id="x'+r.e.id+'">'+(r.ps.length?r.ps.map(function(p){return '<div class="drow"><span class="dd">'+"אבגדהוש"[parse(p.date).getDay()]+"׳ "+parse(p.date).getDate()+"."+(parse(p.date).getMonth()+1)+"."+parse(p.date).getFullYear()+'</span><span class="nn">'+esc(p.note||(p.inLoc==="out"?"מחוץ למשרד":""))+'</span><span class="tt">'+p.in+"–"+p.out+" · <b>"+dur(mins(p.out)-mins(p.in))+"</b></span></div>"}).join(""):'<p class="sub">אין ימים בחודש הזה</p>')+"</div></div>"}).join("")+
+    '<div class="rp-key"><span><i></i>שעות</span><span><i class="v"></i>חופשה ומחלה</span>'+(cur?'<span><i class="m"></i>':"<span>")+"היעד ("+DAY_H+" ש׳ ביום)</span></div>"+
     '<button class="btn navy" type="button" id="xls" style="width:100%;margin-top:10px">ייצוא לאקסל</button></div>'}
 
 /* ================= sunrise slider: night navy → violet → pink → Keenest blue (and back at exit) ================= */
-APP_VERSION=43;
+APP_VERSION=44;
 var RAMP_IN=[[0,[0,32,63]],[.3,[72,30,120]],[.55,[250,22,100]],[.78,[123,92,255]],[1,[6,179,229]]];
 var RAMP_OUT=[[0,[6,179,229]],[.25,[123,92,255]],[.5,[250,22,100]],[.75,[72,30,120]],[1,[0,32,63]]];
 function rampAt(st,t){t=Math.max(0,Math.min(1,t));for(var i=1;i<st.length;i++){if(t<=st[i][0]){var a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);u=u*u*(3-2*u);return a[1].map(function(v,j){return Math.round(v+(b[1][j]-v)*u)})}}return st[st.length-1][1]}

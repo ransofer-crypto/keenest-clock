@@ -266,6 +266,24 @@ textarea.note{overflow:hidden}
 /* a wrapping subtitle keeps the X level with the title */
 .kd-hd.kd-tall{align-items:flex-start}
 .kd-hd.kd-tall .kd-x{margin-top:-6.4px}
+/* v44: Ran's picks */
+/* dark: the chosen segment in Keenest blue with navy text */
+:root[data-theme="dark"] .seg button[aria-pressed="true"]{background:#06B3E5;color:#00203F;box-shadow:none}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .seg button[aria-pressed="true"]{background:#06B3E5;color:#00203F;box-shadow:none}}
+/* report: a small chevron that turns when the day detail opens */
+.rp-t{grid-template-columns:auto 3.4em minmax(0,1fr) auto auto!important}
+.rp-chv{width:11px;height:11px;fill:none;stroke:var(--ink3);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .45s cubic-bezier(.32,.72,0,1)}
+.rp-t.open .rp-chv{transform:rotate(-90deg)}
+@media (prefers-reduced-motion:reduce){.rp-chv{transition:none}}
+/* report day rows: full date, clock times regular, hours worked bold; only the note gives way */
+.rp-p .drow{grid-template-columns:auto minmax(0,1fr) auto}
+.rp-p .drow .dd{white-space:nowrap;font-variant-numeric:tabular-nums}
+.rp-p .drow .tt{font-weight:400;white-space:nowrap}
+.rp-p .drow .tt b{font-weight:700}
+/* today on a vacation or sick day: a quiet line in place of the slider */
+.vq{height:66px;margin-bottom:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:16px;color:var(--muted)}
+.vq button{all:unset;cursor:pointer;font-size:13px;font-weight:500;color:var(--accent-text);padding:2px 8px}
+.slide[hidden]{display:none!important}
 /* today: the toast sits above the slider */
 body:has(#view .mock) .toast{bottom:calc(106px + env(safe-area-inset-bottom,0px))}
 /* special-day drawings stay clear of the slider: the canvas fades out softly towards the slider (clear in the bottom 140px, faint at 180px) */
